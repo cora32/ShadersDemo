@@ -1,4 +1,4 @@
-package io.iskopasi.shader_test
+package io.iskopasi.shader_test.utils
 
 import android.graphics.RuntimeShader
 import android.os.Build
