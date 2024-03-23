@@ -1,14 +1,16 @@
 package io.iskopasi.shader_test.ui.composables
 
+import android.content.res.Configuration
 import android.graphics.Picture
 import android.graphics.RenderEffect
 import android.os.Build
-import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -44,9 +47,12 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.iskopasi.shader_test.DrawerController
+import io.iskopasi.shader_test.ui.theme.Shader_testTheme
 import io.iskopasi.shader_test.utils.NativeBlurShaderHolder
 import io.iskopasi.shader_test.utils.Shaders
 import io.iskopasi.shader_test.utils.toBitmap
@@ -56,6 +62,8 @@ import io.iskopasi.shader_test.utils.toBitmap
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 fun ImageHolder(
     shader: Shaders,
+    width: Dp,
+    height: Dp,
     controller: DrawerController = viewModel()
 ) {
     shader.shaderHolder.setParams(
@@ -66,11 +74,9 @@ fun ImageHolder(
     )
 
     val modifier = if (shader.shaderHolder is NativeBlurShaderHolder) Modifier
-        .fillMaxSize()
         .blur(4.dp)
     else
         Modifier
-            .fillMaxSize()
             .graphicsLayer(
                 clip = true,
                 renderEffect = RenderEffect
@@ -84,9 +90,16 @@ fun ImageHolder(
 
     if (controller.picture.value.width > 0) {
         Image(
-            bitmap = controller.picture.value.toBitmap.asImageBitmap(),
+            bitmap = controller.picture.value.asImageBitmap(),
+//            contentScale = FixedScale(1f),
             contentDescription = null,
             modifier = modifier
+                .background(Color.Green)
+                .wrapContentSize(align = Alignment.BottomCenter, unbounded = true)
+                .graphicsLayer {
+                    translationX = -(width / 2f).toPx()
+                }
+
         )
     } else Box {}
 }
@@ -99,8 +112,6 @@ fun MiniShaderCanvas(
 ) {
     val blend = BlendMode.Difference
     val sSize = 100f
-    val picture = Picture()
-    val picture2 = Picture()
 
     Box(
         modifier = Modifier
@@ -114,6 +125,8 @@ fun MiniShaderCanvas(
                 .drawWithCache {
                     val width = this.size.width.toInt()
                     val height = this.size.height.toInt()
+                    val picture = Picture()
+
                     onDrawWithContent {
                         val pictureCanvas =
                             Canvas(
@@ -123,29 +136,15 @@ fun MiniShaderCanvas(
                                         height
                                     )
                             )
-                        val pictureCanvas2 =
-                            Canvas(
-                                picture2
-                                    .beginRecording(
-                                        width / 2,
-                                        height
-                                    )
-                                    .apply { translate(-width / 2f, 0f) }
-                            )
 
                         draw(this, this.layoutDirection, pictureCanvas, size) {
                             this@onDrawWithContent.drawContent()
                         }
-                        draw(this, this.layoutDirection, pictureCanvas2, size) {
-                            this@onDrawWithContent.drawContent()
-                        }
                         picture.endRecording()
-                        picture2.endRecording()
 
                         drawIntoCanvas { canvas ->
                             canvas.nativeCanvas.drawPicture(picture)
-
-                            controller.picture.value = picture2
+                            controller.picture.value = picture.toBitmap
                         }
                     }
                 }
@@ -177,13 +176,12 @@ fun MiniShaderCanvas(
             )
         }
 
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
                 .width(40.dp)
                 .align(Alignment.CenterEnd)
         ) {
-            Log.e("->>>", "drawing ImageHolder")
-            ImageHolder(shader)
+            ImageHolder(shader, maxWidth, maxHeight)
         }
     }
 }
@@ -240,6 +238,20 @@ fun LeftSide(onClick: (Shaders) -> Unit) {
             Item(Shaders.BoxBlurShader, onClick)
             Item(Shaders.GoogleBlurShader, onClick)
             Item(Shaders.TestShader, onClick)
+        }
+    }
+}
+
+@Preview(showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+fun LeftSidePreview() {
+    Shader_testTheme {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            LeftSide {}
         }
     }
 }

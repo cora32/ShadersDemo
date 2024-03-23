@@ -1,5 +1,6 @@
 package io.iskopasi.shader_test.ui.composables
 
+import android.content.res.Configuration
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Canvas
@@ -24,10 +25,12 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.res.imageResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.iskopasi.shader_test.DrawerController
 import io.iskopasi.shader_test.R
+import io.iskopasi.shader_test.ui.theme.Shader_testTheme
 import io.iskopasi.shader_test.utils.Shaders
 
 
@@ -64,7 +67,7 @@ fun RightSide(controller: DrawerController = viewModel()) {
                         )
                         .height(500.dp),
                 ) {
-                    ShaderCanvas(controller.currentShader.value)
+                    PictureView(controller.currentShader.value)
                 }
             }
         }
@@ -72,7 +75,7 @@ fun RightSide(controller: DrawerController = viewModel()) {
 }
 
 @Composable
-fun ShaderCanvas(shader: Shaders) {
+fun PictureView(shader: Shaders) {
     val blend = BlendMode.Difference
     val image = ImageBitmap.imageResource(id = R.drawable.img)
 
@@ -107,5 +110,20 @@ fun ShaderCanvas(shader: Shaders) {
                 size.height / 2f - image.height / 2f,
             )
         )
+    }
+}
+
+
+@Preview(showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+@Composable
+fun RightSidePreview() {
+    Shader_testTheme {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            RightSide()
+        }
     }
 }
