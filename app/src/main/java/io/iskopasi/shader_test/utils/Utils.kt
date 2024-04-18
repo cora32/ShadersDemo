@@ -4,6 +4,14 @@ import android.graphics.Bitmap
 import android.graphics.Picture
 import android.os.Build
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.Stable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.Canvas
+import androidx.compose.ui.graphics.drawscope.draw
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 
@@ -30,3 +38,32 @@ fun Dp.toPx(): Float {
         return toPx()
     }
 }
+
+@Stable
+fun Modifier.screenshot(mutableStateHolder: MutableState<Bitmap>) =
+    this.drawWithCache {
+        val width = this.size.width.toInt()
+        val height = this.size.height.toInt()
+        val picture = Picture()
+
+        onDrawWithContent {
+            val pictureCanvas =
+                Canvas(
+                    picture
+                        .beginRecording(
+                            width,
+                            height
+                        )
+                )
+
+            draw(this, this.layoutDirection, pictureCanvas, size) {
+                this@onDrawWithContent.drawContent()
+            }
+            picture.endRecording()
+
+            drawIntoCanvas { canvas ->
+                canvas.nativeCanvas.drawPicture(picture)
+                mutableStateHolder.value = picture.toBitmap
+            }
+        }
+    }
