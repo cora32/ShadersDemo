@@ -49,8 +49,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.iskopasi.shader_test.DrawerController
 import io.iskopasi.shader_test.R
 import io.iskopasi.shader_test.ui.theme.Shader_testTheme
-import io.iskopasi.shader_test.utils.NativeBlurShaderHolder
+import io.iskopasi.shader_test.utils.EmptyShader
+import io.iskopasi.shader_test.utils.GradientBorderRuntimeShaderHolder
+import io.iskopasi.shader_test.utils.TestRuntimeShaderHolder
 import io.iskopasi.shader_test.utils.screenshot
+import io.iskopasi.shader_test.utils.toPx
 
 
 @Composable
@@ -110,27 +113,46 @@ fun ShaderCircle(controller: DrawerController) {
 
     val bitmap = controller.bitmapBig.value.asImageBitmap()
     val shader = controller.currentShader.value
-    val modifier = if (shader.shaderHolder is NativeBlurShaderHolder) Modifier
+    val modifier = if (shader.shaderHolder is EmptyShader) Modifier
         .blur(4.dp)
-    else
+    else {
+        when (shader.shaderHolder) {
+            is GradientBorderRuntimeShaderHolder -> {
+                shader.shaderHolder.setParams(
+                    width = circleWidth.dp.toPx(),
+                    height = circleWidth.dp.toPx(),
+                    lensWidth = 2
+                )
+            }
+
+            is TestRuntimeShaderHolder -> {
+                shader.shaderHolder.setParams(
+                    width = circleWidth.dp.toPx(),
+                    height = circleWidth.dp.toPx(),
+                    thirdParam = 2
+                )
+            }
+
+            else -> {
+                shader.shaderHolder.setParams(
+                    width = circleWidth.dp.toPx(),
+                    height = circleWidth.dp.toPx(),
+                )
+            }
+        }
+
         Modifier
             .graphicsLayer(
                 clip = true,
                 renderEffect = RenderEffect
                     .createRuntimeShaderEffect(
-                        shader.shaderHolder.shader!!,
+                        shader.shaderHolder.runtimeShader,
                         "inputShader"
                     )
                     .asComposeRenderEffect()
 //                    renderEffect = RenderEffect.createBlurEffect(8f,8f, Shader.TileMode.MIRROR).asComposeRenderEffect()
             )
-
-    shader.shaderHolder.setParams(
-        mapOf(
-            "width" to 40f,
-            "height" to 80f,
-        )
-    )
+    }
 
     Box(
         modifier = Modifier
@@ -182,7 +204,7 @@ fun ShaderCircle(controller: DrawerController) {
             .clip(CircleShape)
             .border(
                 1.dp,
-                Color.White,
+                Color.White.copy(alpha = 0.5f),
                 CircleShape
             )
     ) {

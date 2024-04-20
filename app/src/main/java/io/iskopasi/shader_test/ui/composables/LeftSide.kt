@@ -47,8 +47,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.iskopasi.shader_test.DrawerController
 import io.iskopasi.shader_test.ui.theme.Shader_testTheme
-import io.iskopasi.shader_test.utils.NativeBlurShaderHolder
+import io.iskopasi.shader_test.utils.EmptyShader
 import io.iskopasi.shader_test.utils.Shaders
+import io.iskopasi.shader_test.utils.TestRuntimeShaderHolder
 import io.iskopasi.shader_test.utils.screenshot
 
 
@@ -60,27 +61,31 @@ fun ImageHolder(
     height: Dp,
     controller: DrawerController = viewModel()
 ) {
-    shader.shaderHolder.setParams(
-        mapOf(
-            "width" to 40f,
-            "height" to 80f,
-        )
-    )
-
-    val modifier = if (shader.shaderHolder is NativeBlurShaderHolder) Modifier
+    val modifier = if (shader.shaderHolder is EmptyShader) Modifier
         .blur(4.dp)
-    else
+    else {
+        when (shader.shaderHolder) {
+            is TestRuntimeShaderHolder -> {
+                shader.shaderHolder.setParams(width = 40f, height = 80f, thirdParam = 2)
+            }
+
+            else -> {
+                shader.shaderHolder.setParams(width = 40f, height = 80f)
+            }
+        }
+
         Modifier
             .graphicsLayer(
                 clip = true,
                 renderEffect = RenderEffect
                     .createRuntimeShaderEffect(
-                        shader.shaderHolder.shader!!,
+                        shader.shaderHolder.runtimeShader,
                         "inputShader"
                     )
                     .asComposeRenderEffect()
 //                    renderEffect = RenderEffect.createBlurEffect(8f,8f, Shader.TileMode.MIRROR).asComposeRenderEffect()
             )
+    }
 
     if (controller.bitmap.value.width > 0) {
         Image(
@@ -204,9 +209,8 @@ fun LeftSide(onClick: (Shaders) -> Unit) {
 
             ) {
             Spacer(modifier = Modifier.height(80.dp))
-            Item(Shaders.BoxBlurShader, onClick)
-            Item(Shaders.GoogleBlurShader, onClick)
-            Item(Shaders.TestShader, onClick)
+            for (shader in Shaders.entries)
+                Item(shader, onClick)
         }
     }
 }
