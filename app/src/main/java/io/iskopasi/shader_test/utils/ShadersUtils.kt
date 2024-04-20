@@ -13,6 +13,10 @@ enum class Shaders(val shaderName: String, val shaderHolder: RuntimeShaderHolder
         GradientBorderRuntimeShaderHolder(GRADIENT_BORDER_SHADER)
     ),
     TestShader("Test shader", TestRuntimeShaderHolder(CUSTOM_SHADER)),
+    BlurBorderShader(
+        "Blur + border shader",
+        ChainShaderHolder(listOf(BoxBlurShader, GradientBorderShader))
+    ),
 }
 
 
@@ -55,7 +59,7 @@ val GRADIENT_BORDER_SHADER = """
             }
             
             half4 main(in float2 fragCoord) {                 
-                vec4 color1 = inputShader.eval(vec2(0, iResolution.y / 2));
+                vec4 color1 = inputShader.eval(vec2(iResolution.x / 2, iResolution.y / 2));
                 vec4 color2 = inputShader.eval(vec2(iResolution.x, iResolution.y / 2));
                 vec2 center = iResolution.xy * 0.5;
                 float radius = 0.45 * iResolution.y;

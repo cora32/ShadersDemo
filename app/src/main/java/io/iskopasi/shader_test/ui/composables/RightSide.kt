@@ -1,7 +1,6 @@
 package io.iskopasi.shader_test.ui.composables
 
 import android.content.res.Configuration
-import android.graphics.RenderEffect
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Canvas
@@ -50,8 +49,6 @@ import io.iskopasi.shader_test.DrawerController
 import io.iskopasi.shader_test.R
 import io.iskopasi.shader_test.ui.theme.Shader_testTheme
 import io.iskopasi.shader_test.utils.EmptyShader
-import io.iskopasi.shader_test.utils.GradientBorderRuntimeShaderHolder
-import io.iskopasi.shader_test.utils.TestRuntimeShaderHolder
 import io.iskopasi.shader_test.utils.screenshot
 import io.iskopasi.shader_test.utils.toPx
 
@@ -116,39 +113,15 @@ fun ShaderCircle(controller: DrawerController) {
     val modifier = if (shader.shaderHolder is EmptyShader) Modifier
         .blur(4.dp)
     else {
-        when (shader.shaderHolder) {
-            is GradientBorderRuntimeShaderHolder -> {
-                shader.shaderHolder.setParams(
-                    width = circleWidth.dp.toPx(),
-                    height = circleWidth.dp.toPx(),
-                    lensWidth = 2
-                )
-            }
-
-            is TestRuntimeShaderHolder -> {
-                shader.shaderHolder.setParams(
-                    width = circleWidth.dp.toPx(),
-                    height = circleWidth.dp.toPx(),
-                    thirdParam = 2
-                )
-            }
-
-            else -> {
-                shader.shaderHolder.setParams(
-                    width = circleWidth.dp.toPx(),
-                    height = circleWidth.dp.toPx(),
-                )
-            }
-        }
+        shader.shaderHolder.setParams(
+            width = circleWidth.dp.toPx(),
+            height = circleWidth.dp.toPx(),
+        )
 
         Modifier
             .graphicsLayer(
                 clip = true,
-                renderEffect = RenderEffect
-                    .createRuntimeShaderEffect(
-                        shader.shaderHolder.runtimeShader,
-                        "inputShader"
-                    )
+                renderEffect = shader.shaderHolder.compose()
                     .asComposeRenderEffect()
 //                    renderEffect = RenderEffect.createBlurEffect(8f,8f, Shader.TileMode.MIRROR).asComposeRenderEffect()
             )
