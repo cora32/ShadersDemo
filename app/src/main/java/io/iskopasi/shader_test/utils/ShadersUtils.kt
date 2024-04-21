@@ -37,12 +37,12 @@ val CUSTOM_SHADER = """
             }
 """.trimIndent()
 
-
 @Language("AGSL")
 val GRADIENT_BORDER_SHADER = """
             uniform shader inputShader;
             uniform float2 iResolution;
             uniform int lensWidth;
+            const vec4 divider = vec4(20);
             
 //            vec4 getCircle(vec2 position, vec4 color, float size)
 //            {
@@ -51,29 +51,112 @@ val GRADIENT_BORDER_SHADER = """
 //                
 //                return color * circle;
 //            }
+
+           float2 circleXY(float r, float angle) {
+                float rads = radians(angle);
+                return float2(r * cos(rads), -r * sin(rads));
+           }
            
-            vec4 circle(vec2 uv, vec2 pos, float rad, vec3 color) {
-            	float d = length(pos - uv) - rad;
-            	float t = clamp(d, 0.0, 1.0);
-            	return vec4(color, 1.0 - t);
+            vec4 circle(vec2 fragCoordxy, vec2 center, float radius, vec3 color) {
+            	float d = length(center - fragCoordxy) - radius;
+            	float t = saturate(d);
+            	return vec4(color, 1);
             }
             
-            half4 main(in float2 fragCoord) {                 
-                vec4 color1 = inputShader.eval(vec2(iResolution.x / 2, iResolution.y / 2));
-                vec4 color2 = inputShader.eval(vec2(iResolution.x, iResolution.y / 2));
+            vec4 getArcAvgColorI(float radius2, float2 center) {
+                vec4 result = vec4(0, 0, 0, 0);
+                
+                for(int i = 0; i < 90; i += 2) {
+                    float2 p1 = circleXY(radius2, float(i)) + center;
+                    vec4 sample = inputShader.eval(vec2(p1.x, p1.y));
+                    result += sample;
+                }
+                
+                result /= divider;
+                
+                return vec4(result.rgb, 1);
+            }
+            
+            vec4 getArcAvgColorII(float radius2, float2 center) {
+                vec4 result = vec4(0, 0, 0, 0);
+                
+                for(int i = 90; i < 180; i += 2) {
+                    float2 p1 = circleXY(radius2, float(i)) + center;
+                    vec4 sample = inputShader.eval(vec2(p1.x, p1.y));
+                    result += sample;
+                }
+                
+                result /= divider;
+                
+                return vec4(result.rgb, 1);
+            }
+            
+            vec4 getArcAvgColorIII(float radius2, float2 center) {
+                vec4 result = vec4(0, 0, 0, 0);
+                
+                for(int i = 180; i < 270; i += 2) {
+                    float2 p1 = circleXY(radius2, float(i)) + center;
+                    vec4 sample = inputShader.eval(vec2(p1.x, p1.y));
+                    result += sample;
+                }
+                
+                result /= divider;
+                
+                return vec4(result.rgb, 1);
+            }
+            
+            vec4 getArcAvgColorIV(float radius2, float2 center) {
+                vec4 result = vec4(0, 0, 0, 0);
+                
+                for(int i = 270; i < 360; i += 2) {
+                    float2 p1 = circleXY(radius2, float(i)) + center;
+                    vec4 sample = inputShader.eval(vec2(p1.x, p1.y));
+                    result += sample;
+                }
+                
+                result /= divider;
+                
+                return vec4(result.rgb, 1);
+            }
+            
+            half4 main(in float2 fragCoord) {
                 vec2 center = iResolution.xy * 0.5;
                 float radius = 0.45 * iResolution.y;
+                float radius2 = 0.47 * iResolution.y;
+            
+//                float2 p1 = circleXY(radius2, 45.0) + center;
+//                float2 p2 = circleXY(radius2, 135) + center;
+//                float2 p3 = circleXY(radius2, 225) + center;
+//                float2 p4 = circleXY(radius2, 315) + center;
+                
+                vec4 colorI = getArcAvgColorI(radius2, center);
+                vec4 colorII = getArcAvgColorII(radius2, center);
+                vec4 colorIII = getArcAvgColorIII(radius2, center);
+                vec4 colorIV = getArcAvgColorIV(radius2, center);
+                
+//                vec4 colorI = vec4(1, 0,0,1);
+//                vec4 colorII = vec4(1, 1,0,1);
+//                vec4 colorIII = vec4(0, 0,1,1);
+//                vec4 colorIV = vec4(0, 1,1,1);
                 
                 float2 uv = fragCoord/iResolution.xy;
-                float mixValue = distance(uv, vec2(0.5, 0));
-                vec4 borderGradientColor = mix(color1, color2, mixValue);
+                vec2 u_c = vec2(0.5, 0.5);
+                float distanceFromLight = length(uv - u_c);
+                float ItoIII = distance(uv, vec2(0, 1));
+                float IItoIV = distance(uv, vec2(1, 1));
+                vec4 borderGradientColor = mix(
+                                                mix(colorIII, colorI, ItoIII),
+                                                mix(colorIV, colorII, IItoIV),  
+                                                uv.x);
+                
                 // Border
                 vec4 layer1 = circle(fragCoord.xy, center, radius, borderGradientColor.rgb);
                  
                 // Underlying picture 
                 vec4 layer2 = inputShader.eval(fragCoord);
                 
-                return mix(layer1, layer2, layer1.a);
+//                return layer1;
+                return mix(layer1, layer2, 1 - distanceFromLight);
             }
 """.trimIndent()
 

@@ -61,9 +61,10 @@ class ChainShaderHolder(val shaderList: List<Shaders>) :
     }
 
     override fun compose(): RenderEffect {
-        var effect: RenderEffect = shaderList.last().shaderHolder.compose()
+        var effect: RenderEffect = shaderList.first().shaderHolder.compose()
 
-        for (i in shaderList.size - 2 downTo 0) {
+        for (i in 1..<shaderList.size) {
+//        for (i in shaderList.size - 2 downTo 0) {
             val nextEffect = shaderList[i].shaderHolder.compose()
             effect = RenderEffect.createChainEffect(nextEffect, effect)
         }
