@@ -57,7 +57,7 @@ val EDGE_DETECT_SHADER = """
     half4 main(in float2 fragCoord) {
         vec4 value = vec4(0, 0, 0, 1);
         float r0 = rand(fragCoord + iTime);
-        int randInt = int(rand(fragCoord + iTime) * 100);
+        float randFloat = r0 * 300.0;
         int r1Sign = 1;
         int r2Sign = 1;
         int r3Sign = 1;
@@ -66,9 +66,10 @@ val EDGE_DETECT_SHADER = """
         if(mod(r0, 3.0) == 0) r2Sign = -1;
         if(mod(r0, 5.0) == 0) r3Sign = -1;
         
+        // Line shift value
         int lineG = 0;
-        if(fragCoord.y > iResolution.y + float(randInt) && fragCoord.y < (iResolution.y + float(randInt) + 8)) {
-            lineG = -100;
+        if(fragCoord.y > randFloat && fragCoord.y < (randFloat + 15)) {
+            lineG = -200;
         }
         
         int r1 = int(rand(fragCoord + iTime) * 100) * r1Sign;
@@ -104,7 +105,7 @@ val EDGE_DETECT_SHADER = """
             value.b > 0.2 
             ) {
                 value.r -= 0.1;
-                value.g += r0 * float(r1Sign);
+                value.g += (r0 * float(r1Sign) * 2.0);
                 value.b -= 0.1;
             } else {
                 value.r -= 0.1;

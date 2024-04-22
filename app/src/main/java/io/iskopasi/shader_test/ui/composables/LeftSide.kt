@@ -9,7 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -187,16 +189,26 @@ fun Item(
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 fun LeftSide(onClick: (Shaders) -> Unit) {
     Surface(color = MaterialTheme.colorScheme.background) {
-        Column(
+        LazyColumn(
+            contentPadding = PaddingValues(vertical = 80.dp),
             modifier = Modifier
-                .padding(vertical = 4.dp)
+//                .padding(vertical = 80.dp)
                 .fillMaxHeight(),
-
             ) {
-            Spacer(modifier = Modifier.height(80.dp))
-            for (shader in Shaders.entries)
-                Item(shader, onClick)
+            items(Shaders.entries) {
+                Item(it, onClick)
+            }
         }
+//        Column(
+//            modifier = Modifier
+//                .padding(vertical = 4.dp)
+//                .fillMaxHeight(),
+//
+//            ) {
+//            Spacer(modifier = Modifier.height(80.dp))
+//            for (shader in Shaders.entries)
+//                Item(shader, onClick)
+//        }
     }
 }
 

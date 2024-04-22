@@ -100,8 +100,8 @@ fun Modifier.applyShader(shader: Shaders) = composed {
         // Coroutine to simulate frame updates for the wavy animation
         LaunchedEffect("animation") {
             while (true) {
-                delay(16) // Delay to simulate frame rate, adjust as needed
-                time += 0.016f // Increase time by 0.016 seconds (60 FPS simulation)
+                delay(32) // Delay to simulate frame rate, adjust as needed
+                time += 0.032f // Increase time by 0.016 seconds (60 FPS simulation)
             }
         }
 
