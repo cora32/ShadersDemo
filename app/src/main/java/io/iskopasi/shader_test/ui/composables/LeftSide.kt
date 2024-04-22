@@ -36,7 +36,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.TextStyle
@@ -48,6 +47,7 @@ import io.iskopasi.shader_test.DrawerController
 import io.iskopasi.shader_test.ui.theme.Shader_testTheme
 import io.iskopasi.shader_test.utils.EmptyShader
 import io.iskopasi.shader_test.utils.Shaders
+import io.iskopasi.shader_test.utils.applyShader
 import io.iskopasi.shader_test.utils.screenshot
 import io.iskopasi.shader_test.utils.toPx
 
@@ -65,16 +65,10 @@ fun ImageHolder(
     else {
         shader.shaderHolder.setParams(
             width = 40f.dp.toPx(),
-            height = 80f.dp.toPx(),
+            height = height.toPx(),
         )
 
-        Modifier
-            .graphicsLayer(
-                clip = true,
-                renderEffect = shader.shaderHolder.compose()
-                    .asComposeRenderEffect()
-//                    renderEffect = RenderEffect.createBlurEffect(8f,8f, Shader.TileMode.MIRROR).asComposeRenderEffect()
-            )
+        Modifier.applyShader(shader)
     }
 
     if (controller.bitmap.value.width > 0) {
@@ -143,6 +137,7 @@ fun MiniShaderCanvas(
         BoxWithConstraints(
             modifier = Modifier
                 .width(40.dp)
+                .height(80.dp)
                 .align(Alignment.CenterEnd)
         ) {
             ImageHolder(shader, maxWidth, maxHeight)

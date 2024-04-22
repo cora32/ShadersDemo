@@ -3,17 +3,32 @@ package io.iskopasi.shader_test.utils
 import android.graphics.Bitmap
 import android.graphics.Picture
 import android.os.Build
+import androidx.annotation.RequiresApi
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Canvas
+import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.drawscope.draw
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
+import kotlinx.coroutines.delay
 
 val Picture.toBitmap: Bitmap
     get() {
@@ -67,3 +82,42 @@ fun Modifier.screenshot(mutableStateHolder: MutableState<Bitmap>) =
             }
         }
     }
+
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+fun Modifier.applyShader(shader: Shaders) = composed {
+    if (shader.shaderHolder.animated) {
+        var time by remember { mutableFloatStateOf(0f) }
+        val infiniteTransition = rememberInfiniteTransition("loop")
+        val animation = infiniteTransition.animateFloat(
+            label = "progress",
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                tween(400, easing = LinearEasing),
+            )
+        )
+
+        // Coroutine to simulate frame updates for the wavy animation
+        LaunchedEffect("animation") {
+            while (true) {
+                delay(16) // Delay to simulate frame rate, adjust as needed
+                time += 0.016f // Increase time by 0.016 seconds (60 FPS simulation)
+            }
+        }
+
+        graphicsLayer {
+            clip = true
+
+            shader.shaderHolder.runtimeShader.setFloatUniform("iTime", time)
+//                Log.e("-->>", "animationProgress ${animation.value}")
+//                shader.shaderHolder.runtimeShader.setFloatUniform("progress", animation.value)
+
+            renderEffect = shader.shaderHolder.compose().asComposeRenderEffect()
+        }
+    } else {
+        graphicsLayer {
+            clip = true
+            renderEffect = shader.shaderHolder.compose().asComposeRenderEffect()
+        }
+    }
+}

@@ -2,6 +2,7 @@ package io.iskopasi.shader_test.ui.composables
 
 import android.content.res.Configuration
 import android.os.Build
+import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -35,7 +36,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -49,6 +49,7 @@ import io.iskopasi.shader_test.DrawerController
 import io.iskopasi.shader_test.R
 import io.iskopasi.shader_test.ui.theme.Shader_testTheme
 import io.iskopasi.shader_test.utils.EmptyShader
+import io.iskopasi.shader_test.utils.applyShader
 import io.iskopasi.shader_test.utils.screenshot
 import io.iskopasi.shader_test.utils.toPx
 
@@ -88,7 +89,7 @@ fun RightSide(controller: DrawerController = viewModel()) {
                 ) {
                     PictureView(controller)
                 }
-                ShaderCircle(controller)
+                ShaderViewport(controller)
             }
         }
     }
@@ -96,7 +97,7 @@ fun RightSide(controller: DrawerController = viewModel()) {
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
-fun ShaderCircle(controller: DrawerController) {
+fun ShaderViewport(controller: DrawerController) {
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
 
@@ -108,6 +109,8 @@ fun ShaderCircle(controller: DrawerController) {
     val height = 500.dp
     var top = 0f
 
+    Log.e("->>", "-->> Composing ShaderViewport");
+
     val bitmap = controller.bitmapBig.value.asImageBitmap()
     val shader = controller.currentShader.value
     val modifier = if (shader.shaderHolder is EmptyShader) Modifier
@@ -118,13 +121,7 @@ fun ShaderCircle(controller: DrawerController) {
             height = circleWidth.dp.toPx(),
         )
 
-        Modifier
-            .graphicsLayer(
-                clip = true,
-                renderEffect = shader.shaderHolder.compose()
-                    .asComposeRenderEffect()
-//                    renderEffect = RenderEffect.createBlurEffect(8f,8f, Shader.TileMode.MIRROR).asComposeRenderEffect()
-            )
+        Modifier.applyShader(shader)
     }
 
     Box(

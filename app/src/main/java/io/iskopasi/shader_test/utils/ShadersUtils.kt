@@ -13,6 +13,7 @@ enum class Shaders(val shaderName: String, val shaderHolder: RuntimeShaderHolder
         GradientBorderRuntimeShaderHolder(GRADIENT_BORDER_SHADER)
     ),
     TestShader("Test shader", TestRuntimeShaderHolder(CUSTOM_SHADER)),
+    GlitchShader("Glitch shader", RuntimeShaderHolder(EDGE_DETECT_SHADER, animated = true)),
     BlurBorderShader(
         "Blur + border shader",
         ChainShaderHolder(listOf(BoxBlurShader, GradientBorderShader))
@@ -35,6 +36,83 @@ val CUSTOM_SHADER = """
                 float mixValue = distance(uv, vec2(0.5, 0));                
                 return mix(color1, color2, mixValue);
             }
+""".trimIndent()
+
+@Language("AGSL")
+val EDGE_DETECT_SHADER = """
+    uniform float iTime;
+    uniform float progress;
+    uniform shader inputShader;
+    uniform float2 iResolution;
+//    const vec3 offset = vec3(-15, 0, 13);
+//    const mat3 edge = mat3(-1, -1, -2, -3, 15, -3, -2, -1, -1);
+    const mat3 edge = mat3(3, -3, -1, -4, 16, -4, -1, -3, 3);
+    const mat3 non = mat3(1, 1, 1, 1, 1, 1, 1, 1, 1);
+    const int radius = 3;
+    
+    float rand(vec2 fragCoord){
+        return fract(sin(dot(fragCoord, vec2(12.9898, 78.233))) * 43758.5453);
+    }
+    
+    half4 main(in float2 fragCoord) {
+        vec4 value = vec4(0, 0, 0, 1);
+        float r0 = rand(fragCoord + iTime);
+        int randInt = int(rand(fragCoord + iTime) * 100);
+        int r1Sign = 1;
+        int r2Sign = 1;
+        int r3Sign = 1;
+        
+        if(mod(r0, 2.0) == 0) r1Sign = -1;
+        if(mod(r0, 3.0) == 0) r2Sign = -1;
+        if(mod(r0, 5.0) == 0) r3Sign = -1;
+        
+        int lineG = 0;
+        if(fragCoord.y > iResolution.y + float(randInt) && fragCoord.y < (iResolution.y + float(randInt) + 8)) {
+            lineG = -100;
+        }
+        
+        int r1 = int(rand(fragCoord + iTime) * 100) * r1Sign;
+        int r2 = int(rand(fragCoord + iTime + float(r1)) * 10) * r2Sign;
+        int r3 = int(rand(fragCoord + iTime + float(r2)) * 100) * r3Sign;
+        vec3 offset = vec3(-15 + r1 + lineG, r2 + lineG, 13 + r3 + lineG);
+//        mat3 edge = mat3(3 - r1, -3 - r2, -1 - r3, -4, 15 + r1 + r2 + r3, -4, -1, -3, 3);
+        
+        // Sort of edge detection
+        for(int x = 0; x < radius; x++) {
+            for(int y = 0; y < radius; y++) {
+                value += (inputShader.eval(vec2(fragCoord.x + offset[x], fragCoord.y + offset[y])) * edge[x][y]);
+            }
+        }
+        value /= 9.0;
+        value.a = 1;
+        
+        // Removing brightness
+        if(
+            value.r > 0.5 && 
+            value.g > 0.5 && 
+            value.b > 0.5 
+            ) {
+                value.r = 0;
+                value.g = 0;
+                value.b = 0;
+            }
+            
+        // Increasing green component
+        if(
+            value.r > 0.2 && 
+            value.g > 0.2 && 
+            value.b > 0.2 
+            ) {
+                value.r -= 0.1;
+                value.g += r0 * float(r1Sign);
+                value.b -= 0.1;
+            } else {
+                value.r -= 0.1;
+                value.b -= 0.1;
+            }
+
+        return value;
+    }
 """.trimIndent()
 
 @Language("AGSL")
@@ -163,44 +241,30 @@ val GRADIENT_BORDER_SHADER = """
 
 @Language("AGSL")
 val BLUR_SHADER = """
-            uniform shader inputShader;
-            uniform float2 iResolution;
+    uniform shader inputShader;
+    uniform float2 iResolution;
 
     const vec3 offset = vec3(-1, 0, 1);
     const mat3 box_blur = mat3(1, 1, 1, 1, 1, 1, 1, 1, 1) * 0.1111;
     const mat3 gaussian_blur = mat3(1, 2, 1, 2, 4, 2, 1, 2, 1) * 0.0625;
     const mat3 sharpen = mat3(0, -1, 0, -1, 5, -1, 0, -1, 0);
 
-    vec4 main(in float2  coords) { 
-    // Normalized pixel coordinates (from 0 to 1)
-//        vec2 uv = coords / iResolution.xy;
+    vec4 main(in float2  coords) {
         vec4 currValue = vec4(0);
-//
-//const int radius = 3;
-//
-//    for(int x = 0; x < radius; x++) {
-//        for(int y = 0; y < radius; y++) {
-//    //            vec2 offset = vec2(x, y) / iResolution.xy;
-////                currValue += (inputShader.eval(coords + vec2(offset[x], offset[y])) * box_blur[x][y]);
-////                currValue += (inputShader.eval(vec2(coords.x + offset[x], coords.y + offset[y])) * box_blur[x][y]);
-//                currValue += (inputShader.eval(vec2(coords.x + offset[x], coords.y + offset[y])) * gaussian_blur[x][y]);
-//        }
-//    }
-//        currValue /= 9.0;
-//
-    const int radius = 20;
-    const int rStart = int(-radius / 2);
-//
-    for(int x = 0; x < radius; x++) {
-        float xOffset = float(rStart + x);
+        
+        const int radius = 20;
+        const int rStart = int(-radius / 2);
 
-        for(int y = 0; y < radius; y++) {
-            float yOffset = float(rStart + y);         
-            currValue += (inputShader.eval(vec2(coords.x + xOffset, coords.y + yOffset)));
+        for(int x = 0; x < radius; x++) {
+            float xOffset = float(rStart + x);
+    
+            for(int y = 0; y < radius; y++) {
+                float yOffset = float(rStart + y);         
+                currValue += (inputShader.eval(vec2(coords.x + xOffset, coords.y + yOffset)));
+            }
         }
-    }
         currValue /= float(radius * radius);
-
+    
         return currValue;
     }
 """.trimIndent()

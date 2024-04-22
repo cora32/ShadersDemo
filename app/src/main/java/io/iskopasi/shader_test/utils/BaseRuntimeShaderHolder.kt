@@ -7,7 +7,7 @@ import androidx.annotation.RequiresApi
 
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-open class RuntimeShaderHolder(private val shader: String) {
+open class RuntimeShaderHolder(private val shader: String, val animated: Boolean = false) {
     val runtimeShader by lazy { RuntimeShader(shader) }
 
     open fun setParams(width: Float, height: Float) {
