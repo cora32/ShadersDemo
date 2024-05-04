@@ -1,10 +1,17 @@
 package io.iskopasi.shader_test
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -23,6 +30,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFontFamilyResolver
 import androidx.compose.ui.text.font.createFontFamilyResolver
+import androidx.core.content.ContextCompat
 import io.iskopasi.shader_test.ui.composables.LeftSide
 import io.iskopasi.shader_test.ui.composables.RightSide
 import io.iskopasi.shader_test.ui.theme.Shader_testTheme
@@ -34,6 +42,15 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val controller: DrawerController by viewModels()
+
+    private val cameraPermissionRequest =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+            if (isGranted) {
+                // Implement camera related  code
+            } else {
+                Toast.makeText(this, "We need your permission", Toast.LENGTH_LONG)
+            }
+        }
 
     // Font loader debugger
     private val handler = CoroutineExceptionHandler { _, throwable ->
@@ -50,9 +67,29 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun onCameraSwitchChanged(enabled: Boolean) {
+        when (PackageManager.PERMISSION_GRANTED) {
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.CAMERA
+            ) -> {
+                controller.onCameraViewSwitch(enabled)
+                scope.launch {
+                    drawerState.close()
+                }
+            }
+
+            else -> {
+                cameraPermissionRequest.launch(Manifest.permission.CAMERA)
+            }
+        }
+    }
+
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT))
 
         setContent {
             drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -72,7 +109,12 @@ class MainActivity : ComponentActivity() {
                     ) {
                         ModalNavigationDrawer(
                             drawerState = drawerState,
-                            drawerContent = { LeftSide(::onShaderClicked) }) {
+                            drawerContent = {
+                                LeftSide(
+                                    ::onShaderClicked,
+                                    ::onCameraSwitchChanged
+                                )
+                            }) {
                             Box(modifier = Modifier
                                 .pointerInput(Unit) {
                                     detectDragGestures { change, dragAmount ->

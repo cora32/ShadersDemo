@@ -28,7 +28,11 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 val Picture.toBitmap: Bitmap
     get() {
@@ -119,5 +123,11 @@ fun Modifier.applyShader(shader: Shaders) = composed {
             clip = true
             renderEffect = shader.shaderHolder.compose().asComposeRenderEffect()
         }
+    }
+}
+
+fun bg(block: () -> Unit): Job {
+    return CoroutineScope(Dispatchers.IO).launch {
+        block()
     }
 }

@@ -9,11 +9,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -24,12 +26,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -40,13 +46,18 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.iskopasi.shader_test.DrawerController
+import io.iskopasi.shader_test.R
 import io.iskopasi.shader_test.ui.theme.Shader_testTheme
+import io.iskopasi.shader_test.ui.theme.colorOrange
+import io.iskopasi.shader_test.ui.theme.colorSwitchTrackBg
+import io.iskopasi.shader_test.ui.theme.colorTextWhite
 import io.iskopasi.shader_test.utils.EmptyShader
 import io.iskopasi.shader_test.utils.Shaders
 import io.iskopasi.shader_test.utils.applyShader
@@ -178,7 +189,7 @@ fun Item(
             )
             Spacer(Modifier.weight(1f))
             Icon(
-                Icons.Rounded.KeyboardArrowRight,
+                Icons.AutoMirrored.Rounded.KeyboardArrowRight,
                 contentDescription = null
             )
         }
@@ -187,28 +198,66 @@ fun Item(
 
 @Composable
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-fun LeftSide(onClick: (Shaders) -> Unit) {
+fun LeftSide(onClick: (Shaders) -> Unit, onCameraSwitchChanged: (Boolean) -> Unit) {
     Surface(color = MaterialTheme.colorScheme.background) {
-        LazyColumn(
-            contentPadding = PaddingValues(vertical = 80.dp),
+        Column(
             modifier = Modifier
-//                .padding(vertical = 80.dp)
+                .padding(top = 24.dp, bottom = 55.dp)
                 .fillMaxHeight(),
+        ) {
+            LazyColumn(
+                contentPadding = PaddingValues(vertical = 80.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .weight(1f),
             ) {
-            items(Shaders.entries) {
-                Item(it, onClick)
+                items(Shaders.entries) {
+                    Item(it, onClick)
+                }
             }
+            CameraSwitch(onCameraSwitchChanged)
         }
-//        Column(
-//            modifier = Modifier
-//                .padding(vertical = 4.dp)
-//                .fillMaxHeight(),
-//
-//            ) {
-//            Spacer(modifier = Modifier.height(80.dp))
-//            for (shader in Shaders.entries)
-//                Item(shader, onClick)
-//        }
+    }
+}
+
+@Composable
+fun CameraSwitch(onCameraSwitchChanged: (Boolean) -> Unit) {
+    val checked = remember {
+        mutableStateOf(false)
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        contentAlignment = Alignment.CenterEnd
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                stringResource(
+                    R.string.camera_state,
+                    stringResource(if (checked.value) R.string.on else R.string.off)
+                ),
+                color = if (checked.value) colorOrange else colorTextWhite
+            )
+            Spacer(Modifier.width(16.dp))
+            Switch(
+                checked = checked.value,
+                onCheckedChange = { enabled ->
+                    checked.value = enabled
+                    onCameraSwitchChanged(enabled)
+                },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = colorOrange,
+                    checkedTrackColor = colorSwitchTrackBg,
+                    checkedBorderColor = colorTextWhite,
+//                            uncheckedThumbColor = Color.Yellow,
+//                            uncheckedTrackColor = Color.Blue,
+                ),
+            )
+        }
     }
 }
 
@@ -221,7 +270,7 @@ fun LeftSidePreview() {
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            LeftSide {}
+            LeftSide({}, { })
         }
     }
 }

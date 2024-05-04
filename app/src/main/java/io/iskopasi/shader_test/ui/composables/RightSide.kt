@@ -57,40 +57,50 @@ import io.iskopasi.shader_test.utils.toPx
 @Composable
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 fun RightSide(controller: DrawerController = viewModel()) {
-    Surface(
-        color = MaterialTheme.colorScheme.background,
-        modifier = Modifier
-            .padding(start = 40.dp, end = 16.dp)
-            .fillMaxSize()
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally
+    if (controller.cameraEnabled.value) {
+        CameraView(controller)
+    } else {
+        Surface(
+            color = MaterialTheme.colorScheme.background,
+            modifier = Modifier
+                .padding(start = 40.dp, end = 16.dp)
+                .fillMaxSize()
         ) {
-            Text(
-                controller.currentShader.value.shaderName,
-                modifier = Modifier.padding(top = 32.dp),
-                style = MaterialTheme.typography.titleLarge
-            )
-            Spacer(modifier = Modifier.height(32.dp))
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
+            DemoView(controller)
+        }
+    }
+}
+
+@Composable
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+fun DemoView(controller: DrawerController) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            controller.currentShader.value.shaderName,
+            modifier = Modifier.padding(top = 32.dp),
+            style = MaterialTheme.typography.titleLarge
+        )
+        Spacer(modifier = Modifier.height(32.dp))
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Surface(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(
+                        .5.dp,
+                        MaterialTheme.colorScheme.secondary,
+                        RoundedCornerShape(16.dp)
+                    )
+                    .height(500.dp),
             ) {
-                Surface(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .border(
-                            .5.dp,
-                            MaterialTheme.colorScheme.secondary,
-                            RoundedCornerShape(16.dp)
-                        )
-                        .height(500.dp),
-                ) {
-                    PictureView(controller)
-                }
-                ShaderViewport(controller)
+                PictureView(controller)
             }
+            ShaderViewport(controller)
         }
     }
 }

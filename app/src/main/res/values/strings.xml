@@ -1,4 +1,7 @@
 <resources>
     <string name="app_name">shader_test</string>
     <string name="title_activity_main">MainActivity</string>
+    <string name="camera_state">Camera is %1$s</string>
+    <string name="on">on</string>
+    <string name="off">off</string>
 </resources>

@@ -13,3 +13,7 @@ val PurpleGrey40 = Color(0xFF625b71)
 val Pink40 = Color(0xFF7D5260)
 val GrayLightMode = Color(0xFF707070)
 val BgColorDark = Color(0xFF242424)
+
+val colorOrange = Color(0xFFFF9800)
+val colorSwitchTrackBg = Color(0xFF3D372E)
+val colorTextWhite = Color(0xFFC7C7C7)
