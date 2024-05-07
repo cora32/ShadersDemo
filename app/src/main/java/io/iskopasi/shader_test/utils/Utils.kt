@@ -3,6 +3,7 @@ package io.iskopasi.shader_test.utils
 import android.graphics.Bitmap
 import android.graphics.Picture
 import android.os.Build
+import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
@@ -131,3 +132,9 @@ fun bg(block: () -> Unit): Job {
         block()
     }
 }
+
+val String.e: String
+    get() {
+        Log.e("-->", this)
+        return this
+    }

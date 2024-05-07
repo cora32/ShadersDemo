@@ -1,6 +1,9 @@
 package io.iskopasi.shader_test.ui.composables
 
 import android.content.Context
+import android.os.Build
+import android.view.SurfaceView
+import androidx.annotation.RequiresApi
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -15,11 +18,24 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import io.iskopasi.shader_test.DrawerController
+import io.iskopasi.shader_test.utils.bindCamera
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun CameraView(controller: DrawerController) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    AndroidView(
+        factory = { SurfaceView(context).bindCamera(context, lifecycleOwner) },
+        modifier = Modifier.fillMaxSize()
+    )
+}
+
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+@Composable
+fun CameraViewX(controller: DrawerController) {
     val lensFacing = CameraSelector.LENS_FACING_BACK
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
@@ -34,6 +50,7 @@ fun CameraView(controller: DrawerController) {
         cameraProvider.bindToLifecycle(lifecycleOwner, cameraxSelector, preview)
         preview.setSurfaceProvider(previewView.surfaceProvider)
     }
+
     AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
 }
 

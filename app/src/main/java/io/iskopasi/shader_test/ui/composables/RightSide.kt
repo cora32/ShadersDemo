@@ -2,7 +2,6 @@ package io.iskopasi.shader_test.ui.composables
 
 import android.content.res.Configuration
 import android.os.Build
-import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -118,8 +117,6 @@ fun ShaderViewport(controller: DrawerController) {
     val leftPadding = circleWidth / 2f
     val height = 500.dp
     var top = 0f
-
-    Log.e("->>", "-->> Composing ShaderViewport");
 
     val bitmap = controller.bitmapBig.value.asImageBitmap()
     val shader = controller.currentShader.value
