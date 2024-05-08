@@ -1,8 +1,9 @@
 package io.iskopasi.shader_test.ui.composables
 
 import android.content.Context
+import android.opengl.GLSurfaceView
 import android.os.Build
-import android.view.SurfaceView
+import android.view.Surface
 import androidx.annotation.RequiresApi
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
@@ -27,8 +28,27 @@ import kotlin.coroutines.suspendCoroutine
 fun CameraView(controller: DrawerController) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val view = remember {
+        GLSurfaceView(context).apply {
+            val renderer = MyGLRenderer(this)
+            setEGLContextClientVersion(2)
+            setRenderer(renderer)
+            renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
+
+//                renderer?.setDefaultBufferSize(100 ,100)
+            Surface(renderer.mSurfaceTexture).bindCamera(
+                context,
+                lifecycleOwner
+            )
+
+//            SurfaceView(context).apply {
+//                holder.surface.bindCamera(context, lifecycleOwner)
+//            }
+        }
+    }
+
     AndroidView(
-        factory = { SurfaceView(context).bindCamera(context, lifecycleOwner) },
+        factory = { view },
         modifier = Modifier.fillMaxSize()
     )
 }
