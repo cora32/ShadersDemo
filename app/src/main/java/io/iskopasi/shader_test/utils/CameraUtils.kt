@@ -14,7 +14,6 @@ import android.hardware.camera2.params.SessionConfiguration
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
-import android.view.OrientationEventListener
 import android.view.Surface
 import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
@@ -63,36 +62,13 @@ class Camera2Impl() : DefaultLifecycleObserver {
         _handler = Handler(_cameraThread.looper)
     }
 
-    private fun getJpegOrientation(
-        orientation: Int
-    ): Int {
-        var deviceOrientation = orientation
-        if (deviceOrientation == OrientationEventListener.ORIENTATION_UNKNOWN) return 0
-        val sensorOrientation =
-            cameraCharacteristic.get(CameraCharacteristics.SENSOR_ORIENTATION)!!
-
-        // Round device orientation to a multiple of 90
-        deviceOrientation = (deviceOrientation + 45) / 90 * 90
-
-        // Reverse device orientation for front-facing cameras
-        deviceOrientation = -deviceOrientation
-
-        // Calculate desired JPEG orientation relative to camera orientation to make
-        // the image upright relative to the device orientation
-        return (sensorOrientation + deviceOrientation + 360) % 360
-    }
-
-    fun getCameraCaptureCallback(surface: Surface, rotation: Int) =
+    fun getCameraCaptureCallback(surface: Surface) =
         object : CameraCaptureSession.StateCallback() {
             override fun onConfigured(session: CameraCaptureSession) {
                 // Build request to the camera device to start streaming data into surface
                 val request =
                     session.device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
                         set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH)
-                        set(
-                            CaptureRequest.JPEG_ORIENTATION,
-                            getJpegOrientation(rotation)
-                        )
                         addTarget(surface)
                     }.build()
 
@@ -105,25 +81,23 @@ class Camera2Impl() : DefaultLifecycleObserver {
             }
         }
 
-    private fun getCameraCallback(context: Context, surface: Surface) =
+    private fun getCameraCallback(surface: Surface) =
         object : CameraDevice.StateCallback() {
             @RequiresApi(Build.VERSION_CODES.R)
             override fun onOpened(cameraDevice: CameraDevice) {
-                val rotation = ContextCompat.getDisplayOrDefault(context).rotation
-
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                     cameraDevice.createCaptureSession(
                         SessionConfiguration(
                             SessionConfiguration.SESSION_REGULAR,
                             listOf(OutputConfiguration(surface)),
                             ExecutorCompat.create(_handler),
-                            getCameraCaptureCallback(surface, rotation)
+                            getCameraCaptureCallback(surface)
                         )
                     )
                 } else {
                     cameraDevice.createCaptureSession(
                         listOf(surface),
-                        getCameraCaptureCallback(surface, rotation),
+                        getCameraCaptureCallback(surface),
                         _handler
                     )
                 }
@@ -164,6 +138,7 @@ class Camera2Impl() : DefaultLifecycleObserver {
             return
         }
 
+//        val rotation = ContextCompat.getDisplayOrDefault(context).rotation
         bg {
             ContextCompat.getSystemService(context, CameraManager::class.java)
                 ?.let { cameraManager ->
@@ -178,7 +153,7 @@ class Camera2Impl() : DefaultLifecycleObserver {
 
                     cameraManager.openCamera(
                         cameraId,
-                        getCameraCallback(context, surface),
+                        getCameraCallback(surface),
                         _handler
                     )
                 }

@@ -5,11 +5,6 @@ import android.graphics.Picture
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -92,15 +87,15 @@ fun Modifier.screenshot(mutableStateHolder: MutableState<Bitmap>) =
 fun Modifier.applyShader(shader: Shaders) = composed {
     if (shader.shaderHolder.animated) {
         var time by remember { mutableFloatStateOf(0f) }
-        val infiniteTransition = rememberInfiniteTransition("loop")
-        val animation = infiniteTransition.animateFloat(
-            label = "progress",
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                tween(400, easing = LinearEasing),
-            )
-        )
+//        val infiniteTransition = rememberInfiniteTransition("loop")
+//        val animation = infiniteTransition.animateFloat(
+//            label = "progress",
+//            initialValue = 0f,
+//            targetValue = 1f,
+//            animationSpec = infiniteRepeatable(
+//                tween(400, easing = LinearEasing),
+//            )
+//        )
 
         // Coroutine to simulate frame updates for the wavy animation
         LaunchedEffect("animation") {
