@@ -7,6 +7,8 @@ import android.opengl.GLES20
 import android.opengl.GLES20.glGetUniformLocation
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix
+import android.util.Size
+import io.iskopasi.shader_test.utils.e
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
@@ -14,7 +16,7 @@ import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 
 
-class MyGLRenderer(private var mGLSurfaceView: GLSurfaceView) : GLSurfaceView.Renderer,
+class MyGLRenderer(private var mGLSurfaceView: GLSurfaceView, size: Size) : GLSurfaceView.Renderer,
     OnFrameAvailableListener {
     //Texture ID of camera image
     private var textureId: Int = 0
@@ -56,7 +58,13 @@ class MyGLRenderer(private var mGLSurfaceView: GLSurfaceView) : GLSurfaceView.Re
     )
 
     //Texture coordinate data represents the mapping relationship of the camera image in the preview area.
-    private val TEXTURE_COORDS = floatArrayOf(
+    private val TEXTURE_COORDS_MIRRORED = floatArrayOf(
+        0f, 0f,
+        1f, 0f,
+        0f, 1f,
+        1f, 1f
+    )
+    private val TEXTURE_COORDS_ORIG = floatArrayOf(
         0f, 1f,
         1f, 1f,
         0f, 0f,
@@ -75,6 +83,8 @@ class MyGLRenderer(private var mGLSurfaceView: GLSurfaceView) : GLSurfaceView.Re
     init {
         textureId = createTexture()
         mSurfaceTexture = SurfaceTexture(textureId)
+        "---> MyGLRenderer setting size: ${size.width}, ${size.height}".e
+        mSurfaceTexture?.setDefaultBufferSize(size.width, size.height)
         mSurfaceTexture?.setOnFrameAvailableListener(this)
     }
 
@@ -137,7 +147,7 @@ class MyGLRenderer(private var mGLSurfaceView: GLSurfaceView) : GLSurfaceView.Re
             GLES20.GL_FLOAT,
             false,
             0,
-            floatBufferFromArray(TEXTURE_COORDS)
+            floatBufferFromArray(TEXTURE_COORDS_MIRRORED)
         )
         GLES20.glEnableVertexAttribArray(textureCoordHandle)
         // Activate texture unit 0 and bind the current texture to the external OES texture target

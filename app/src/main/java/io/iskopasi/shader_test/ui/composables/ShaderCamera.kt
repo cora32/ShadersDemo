@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import io.iskopasi.shader_test.DrawerController
+import io.iskopasi.shader_test.utils.CameraUtils
 import io.iskopasi.shader_test.utils.bindCamera
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
@@ -30,22 +31,22 @@ fun CameraView(controller: DrawerController) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val view = remember {
         GLSurfaceView(context).apply {
-            val renderer = MyGLRenderer(this)
+            val size = CameraUtils.getMaxSizeFront(context)
+            val renderer = MyGLRenderer(this, size)
             setEGLContextClientVersion(2)
             setRenderer(renderer)
             renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
 
-//                renderer?.setDefaultBufferSize(100 ,100)
             Surface(renderer.mSurfaceTexture).bindCamera(
                 context,
                 lifecycleOwner
             )
-
-//            SurfaceView(context).apply {
-//                holder.surface.bindCamera(context, lifecycleOwner)
-//            }
         }
     }
+
+//    val view = SurfaceView(context).apply {
+//        holder.surface.bindCamera(context, lifecycleOwner)
+//    }
 
     AndroidView(
         factory = { view },

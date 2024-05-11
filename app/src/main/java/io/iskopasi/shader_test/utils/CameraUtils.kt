@@ -3,6 +3,7 @@ package io.iskopasi.shader_test.utils
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
@@ -14,6 +15,7 @@ import android.hardware.camera2.params.SessionConfiguration
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
+import android.util.Size
 import android.view.Surface
 import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
@@ -23,7 +25,7 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 
 
-class Camera2Impl() : DefaultLifecycleObserver {
+class Camera2Impl : DefaultLifecycleObserver {
     private lateinit var _cameraThread: HandlerThread
     private lateinit var _handler: Handler
 
@@ -67,8 +69,16 @@ class Camera2Impl() : DefaultLifecycleObserver {
             override fun onConfigured(session: CameraCaptureSession) {
                 // Build request to the camera device to start streaming data into surface
                 val request =
-                    session.device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
+                    session.device.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
+                        set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_AUTO)
                         set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH)
+//                        set(CaptureRequest.HOT_PIXEL_MODE, CaptureRequest.HOT_PIXEL_MODE_HIGH_QUALITY)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            set(
+                                CaptureRequest.SENSOR_PIXEL_MODE,
+                                CaptureRequest.SENSOR_PIXEL_MODE_MAXIMUM_RESOLUTION
+                            )
+                        }
                         addTarget(surface)
                     }.build()
 
@@ -89,7 +99,12 @@ class Camera2Impl() : DefaultLifecycleObserver {
                     cameraDevice.createCaptureSession(
                         SessionConfiguration(
                             SessionConfiguration.SESSION_REGULAR,
-                            listOf(OutputConfiguration(surface)),
+                            listOf(OutputConfiguration(surface).apply {
+                                // Works for SurfaceView but not for GLSurfaceView
+//                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+//                                    mirrorMode = OutputConfiguration.MIRROR_MODE_V
+//                                }
+                            }),
                             ExecutorCompat.create(_handler),
                             getCameraCaptureCallback(surface)
                         )
@@ -143,13 +158,13 @@ class Camera2Impl() : DefaultLifecycleObserver {
             ContextCompat.getSystemService(context, CameraManager::class.java)
                 ?.let { cameraManager ->
                     // Select front-facing camera
-                    val cameraId = cameraManager.cameraIdList.first {
-                        cameraManager
-                            .getCameraCharacteristics(it)
-                            .get(CameraCharacteristics.LENS_FACING) == CameraMetadata.LENS_FACING_FRONT
-                    }
+                    val (cameraId, camCharacteristic) = CameraUtils.getCameraCharacteristic(
+                        context,
+                        CameraMetadata.LENS_FACING_FRONT
+                    )
 
-                    cameraCharacteristic = cameraManager.getCameraCharacteristics(cameraId)
+                    cameraCharacteristic = camCharacteristic
+//                    listSupportedSized()
 
                     cameraManager.openCamera(
                         cameraId,
@@ -159,6 +174,37 @@ class Camera2Impl() : DefaultLifecycleObserver {
                 }
         }
     }
+
+    private fun listSupportedSized() {
+        val scmap = cameraCharacteristic.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+//      val previewSizes = scmap?.getOutputSizes(ImageReader::class.java)
+        scmap?.getOutputSizes(SurfaceTexture::class.java)?.forEach { s ->
+            "-->> ${s.width} x ${s.height}".e
+        }
+    }
+}
+
+object CameraUtils {
+    fun getCameraCharacteristic(
+        context: Context,
+        lensFacing: Int
+    ): Pair<String, CameraCharacteristics> =
+        ContextCompat.getSystemService(context, CameraManager::class.java)!!
+            .let { cameraManager ->
+                cameraManager.cameraIdList.first {
+                    cameraManager
+                        .getCameraCharacteristics(it)
+                        .get(CameraCharacteristics.LENS_FACING) == lensFacing
+                }.let { cameraId ->
+                    Pair(cameraId, cameraManager.getCameraCharacteristics(cameraId))
+                }
+            }
+
+    fun getMaxSizeFront(context: Context): Size =
+        getCameraCharacteristic(context, CameraMetadata.LENS_FACING_FRONT).second
+            .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)!!
+            .getOutputSizes(SurfaceTexture::class.java)!!
+            .first()
 }
 
 fun Surface.bindCamera(context: Context, lifecycleOwner: LifecycleOwner): Surface {
