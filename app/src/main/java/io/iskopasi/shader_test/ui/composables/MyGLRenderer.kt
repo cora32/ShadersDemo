@@ -16,7 +16,12 @@ import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 
 
-class MyGLRenderer(private var mGLSurfaceView: GLSurfaceView, size: Size) : GLSurfaceView.Renderer,
+class MyGLRenderer(
+    private var mGLSurfaceView: GLSurfaceView,
+    size: Size,
+    private val width: Int,
+    private val height: Int
+) : GLSurfaceView.Renderer,
     OnFrameAvailableListener {
     //Texture ID of camera image
     private var textureId: Int = 0
@@ -38,7 +43,7 @@ class MyGLRenderer(private var mGLSurfaceView: GLSurfaceView, size: Size) : GLSu
          """.trim()
 
     // fragment shader
-    private var fragmentShaderCode = """
+    private var fragmentShaderCode2 = """
          #extension GL_OES_EGL_image_external : require
          precision mediump float;
          uniform samplerExternalOES u_texture;
@@ -46,6 +51,92 @@ class MyGLRenderer(private var mGLSurfaceView: GLSurfaceView, size: Size) : GLSu
          
          void main() {
            gl_FragColor = texture2D(u_texture, v_textureCoord);
+           gl_FragColor.r = 1.0;
+         }
+         """.trim()
+    private var fragmentShaderCode = """
+         #extension GL_OES_EGL_image_external : require
+         precision mediump float;
+         uniform samplerExternalOES u_texture;
+         varying vec2 v_textureCoord;
+         
+         
+        uniform float iTime;
+//        uniform float progress;
+//        uniform shader inputShader;
+        uniform vec2 iResolution;
+    //    const vec3 offset = vec3(-15, 0, 13);
+    //    const mat3 edge = mat3(-1, -1, -2, -3, 15, -3, -2, -1, -1);
+        const mat3 edge = mat3(3, -3, -1, -4, 16, -4, -1, -3, 3);
+        const mat3 non = mat3(1, 1, 1, 1, 1, 1, 1, 1, 1);
+        const int radius = 3;
+        
+        float rand(vec2 fragCoord){
+            return fract(sin(dot(fragCoord, vec2(12.9898, 78.233))) * 43758.5453);
+        }
+         
+         void main() {
+            vec4 value = vec4(0, 0, 0, 1);
+            float r0 = rand(v_textureCoord + iTime);
+            float randFloat = r0 * 300.0;
+            int r1Sign = 1;
+            int r2Sign = 1;
+            int r3Sign = 1;
+
+
+            if(mod(r0, 2.0) == 0.0) r1Sign = -1;
+            if(mod(r0, 3.0) == 0.0) r2Sign = -1;
+            if(mod(r0, 5.0) == 0.0) r3Sign = -1;
+         
+        // Line shift value
+        int lineG = 0;
+//        if(v_textureCoord.y > randFloat && v_textureCoord.y < (randFloat + 15.0)) {
+//            lineG = -200;
+//        }
+
+        int r1 = int(rand(v_textureCoord + iTime) * 100.0) * r1Sign;
+        int r2 = int(rand(v_textureCoord + iTime + float(r1)) * 10.0) * r2Sign;
+        int r3 = int(rand(v_textureCoord + iTime + float(r2)) * 100.0) * r3Sign;
+        vec3 offset = vec3(-15 + r1 + lineG, r2 + lineG, 13 + r3 + lineG);
+        
+        // Sort of edge detection
+        for(int x = 0; x < radius; x++) {
+            for(int y = 0; y < radius; y++) {
+                vec2 coord = vec2(v_textureCoord.x + offset[x], v_textureCoord.y + offset[y]);
+                value += texture2D(u_texture, coord) * float(edge[x][y]);
+            }
+        }
+        value /= 9.0;
+        value.a = 1.0;
+        
+        // Removing brightness
+        if(
+            value.r > 0.5 && 
+            value.g > 0.5 && 
+            value.b > 0.5 
+            ) {
+                value.r = 0.0;
+                value.g = 0.0;
+                value.b = 0.0;
+            }
+            
+        // Increasing green component
+        if(
+            value.r > 0.2 && 
+            value.g > 0.2 && 
+            value.b > 0.2 
+            ) {
+                value.r -= 0.1;
+                value.g += (r0 * float(r1Sign) * 2.0);
+                value.b -= 0.1;
+            } else {
+                value.r -= 0.1;
+                value.b -= 0.1;
+            }
+        gl_FragColor = value;
+//        return value;
+//           gl_FragColor = texture2D(u_texture, v_textureCoord);
+//           gl_FragColor.r = 1.0;
          }
          """.trim()
 
@@ -78,6 +169,8 @@ class MyGLRenderer(private var mGLSurfaceView: GLSurfaceView, size: Size) : GLSu
     private var positionHandle = 0
     private var textureCoordHandle = 0
     private var uMVPMatrixHandle = 0
+    private var iResolutionHandle = 0
+    private var iTimeHandle = 0
     private val mvpMatrix = FloatArray(16)
 
     init {
@@ -108,6 +201,8 @@ class MyGLRenderer(private var mGLSurfaceView: GLSurfaceView, size: Size) : GLSu
         positionHandle = GLES20.glGetAttribLocation(programId, "a_position")
         textureCoordHandle = GLES20.glGetAttribLocation(programId, "a_textureCoord")
         uMVPMatrixHandle = glGetUniformLocation(programId, "uMVPMatrix")
+        iResolutionHandle = glGetUniformLocation(programId, "iResolution")
+        iTimeHandle = glGetUniformLocation(programId, "iTime")
         //Use shader program
         GLES20.glUseProgram(programId)
     }
@@ -123,8 +218,11 @@ class MyGLRenderer(private var mGLSurfaceView: GLSurfaceView, size: Size) : GLSu
     override fun onDrawFrame(p0: GL10?) {
         // Rotate front camera
         Matrix.setIdentityM(mvpMatrix, 0)
-        Matrix.rotateM(mvpMatrix, 0, 90f, 0.0f, 0.0f, 1.0f)
+        Matrix.rotateM(mvpMatrix, 0, 270f, 0.0f, 0.0f, 1.0f)
         GLES20.glUniformMatrix4fv(uMVPMatrixHandle, 1, false, mvpMatrix, 0)
+
+        GLES20.glUniform2iv(iResolutionHandle, 1, intArrayOf(width, height), 0)
+        GLES20.glUniform1f(iTimeHandle, 1f)
 
         //Update texture image
         mSurfaceTexture?.updateTexImage()
@@ -147,7 +245,7 @@ class MyGLRenderer(private var mGLSurfaceView: GLSurfaceView, size: Size) : GLSu
             GLES20.GL_FLOAT,
             false,
             0,
-            floatBufferFromArray(TEXTURE_COORDS_MIRRORED)
+            floatBufferFromArray(TEXTURE_COORDS_ORIG)
         )
         GLES20.glEnableVertexAttribArray(textureCoordHandle)
         // Activate texture unit 0 and bind the current texture to the external OES texture target

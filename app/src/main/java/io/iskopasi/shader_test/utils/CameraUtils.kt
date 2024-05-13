@@ -71,7 +71,7 @@ class Camera2Impl : DefaultLifecycleObserver {
                 val request =
                     session.device.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
                         set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_AUTO)
-                        set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH)
+//                        set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH)
 //                        set(CaptureRequest.HOT_PIXEL_MODE, CaptureRequest.HOT_PIXEL_MODE_HIGH_QUALITY)
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                             set(
@@ -160,7 +160,7 @@ class Camera2Impl : DefaultLifecycleObserver {
                     // Select front-facing camera
                     val (cameraId, camCharacteristic) = CameraUtils.getCameraCharacteristic(
                         context,
-                        CameraMetadata.LENS_FACING_FRONT
+                        CameraMetadata.LENS_FACING_BACK
                     )
 
                     cameraCharacteristic = camCharacteristic
@@ -199,6 +199,12 @@ object CameraUtils {
                     Pair(cameraId, cameraManager.getCameraCharacteristics(cameraId))
                 }
             }
+
+    fun getMaxSizeBack(context: Context): Size =
+        getCameraCharacteristic(context, CameraMetadata.LENS_FACING_BACK).second
+            .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)!!
+            .getOutputSizes(SurfaceTexture::class.java)!!
+            .first()
 
     fun getMaxSizeFront(context: Context): Size =
         getCameraCharacteristic(context, CameraMetadata.LENS_FACING_FRONT).second

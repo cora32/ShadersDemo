@@ -4,6 +4,7 @@ import android.content.Context
 import android.opengl.GLSurfaceView
 import android.os.Build
 import android.view.Surface
+import android.view.WindowManager
 import androidx.annotation.RequiresApi
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
@@ -31,8 +32,13 @@ fun CameraView(controller: DrawerController) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val view = remember {
         GLSurfaceView(context).apply {
-            val size = CameraUtils.getMaxSizeFront(context)
-            val renderer = MyGLRenderer(this, size)
+//            val size = CameraUtils.getMaxSizeFront(context)
+            val size = CameraUtils.getMaxSizeBack(context)
+            val bounds = ContextCompat.getSystemService(context, WindowManager::class.java)!!
+                .currentWindowMetrics
+                .bounds
+
+            val renderer = MyGLRenderer(this, size, bounds.width(), bounds.height())
             setEGLContextClientVersion(2)
             setRenderer(renderer)
             renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY

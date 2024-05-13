@@ -13,7 +13,7 @@ enum class Shaders(val shaderName: String, val shaderHolder: RuntimeShaderHolder
         GradientBorderRuntimeShaderHolder(GRADIENT_BORDER_SHADER)
     ),
     TestShader("Test shader", TestRuntimeShaderHolder(CUSTOM_SHADER)),
-    GlitchShader("Glitch shader", RuntimeShaderHolder(EDGE_DETECT_SHADER, animated = true)),
+    GlitchShader("Glitch shader", RuntimeShaderHolder(GLITCH_SHADER, animated = true)),
     BlurBorderShader(
         "Blur + border shader",
         ChainShaderHolder(listOf(BoxBlurShader, GradientBorderShader))
@@ -39,7 +39,7 @@ val CUSTOM_SHADER = """
 """.trimIndent()
 
 @Language("AGSL")
-val EDGE_DETECT_SHADER = """
+val GLITCH_SHADER = """
     uniform float iTime;
     uniform float progress;
     uniform shader inputShader;
