@@ -1,5 +1,6 @@
 package io.iskopasi.shader_test.utils
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Picture
 import android.os.Build
@@ -127,6 +128,13 @@ fun bg(block: () -> Unit): Job {
         block()
     }
 }
+
+fun Context.loadShader(filepath: String): String = assets
+    .open(filepath)
+    .bufferedReader().use {
+        it.readText()
+    }
+    .trimIndent()
 
 val String.e: String
     get() {
