@@ -20,7 +20,8 @@ class MyGLRenderer(
     private var mGLSurfaceView: GLSurfaceView,
     size: Size,
     private val width: Int,
-    private val height: Int
+    private val height: Int,
+    private val isFront: Boolean
 ) : GLSurfaceView.Renderer,
     OnFrameAvailableListener {
     //Texture ID of camera image
@@ -28,6 +29,7 @@ class MyGLRenderer(
     var mSurfaceTexture: SurfaceTexture? = null
     private val COORDS_PER_VERTEX = 2
     private val TEXTURE_COORDS_PER_VERTEX = 2
+    private val rotationAngle = if (isFront) 90f else -90f
 
     //vertex shader
     private var vertexShaderCode = """
@@ -53,7 +55,7 @@ class MyGLRenderer(
            gl_FragColor = texture2D(u_texture, v_textureCoord);
            gl_FragColor.r = 1.0;
          }
-         """.trim()
+         """.trimIndent()
     private var fragmentShaderCode = """
          #extension GL_OES_EGL_image_external : require
          precision mediump float;
@@ -138,7 +140,7 @@ class MyGLRenderer(
 //           gl_FragColor = texture2D(u_texture, v_textureCoord);
 //           gl_FragColor.r = 1.0;
          }
-         """.trim()
+         """.trimIndent()
 
     //Vertex coordinate data, indicating the position and size of the preview image.
     private val VERTEX_COORDS = floatArrayOf(
@@ -218,7 +220,7 @@ class MyGLRenderer(
     override fun onDrawFrame(p0: GL10?) {
         // Rotate front camera
         Matrix.setIdentityM(mvpMatrix, 0)
-        Matrix.rotateM(mvpMatrix, 0, 270f, 0.0f, 0.0f, 1.0f)
+        Matrix.rotateM(mvpMatrix, 0, rotationAngle, 0.0f, 0.0f, 1.0f)
         GLES20.glUniformMatrix4fv(uMVPMatrixHandle, 1, false, mvpMatrix, 0)
 
         GLES20.glUniform2iv(iResolutionHandle, 1, intArrayOf(width, height), 0)
@@ -245,7 +247,7 @@ class MyGLRenderer(
             GLES20.GL_FLOAT,
             false,
             0,
-            floatBufferFromArray(TEXTURE_COORDS_ORIG)
+            floatBufferFromArray(if (isFront) TEXTURE_COORDS_MIRRORED else TEXTURE_COORDS_ORIG)
         )
         GLES20.glEnableVertexAttribArray(textureCoordHandle)
         // Activate texture unit 0 and bind the current texture to the external OES texture target

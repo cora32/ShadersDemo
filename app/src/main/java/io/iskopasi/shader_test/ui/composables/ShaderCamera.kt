@@ -4,7 +4,6 @@ import android.content.Context
 import android.opengl.GLSurfaceView
 import android.os.Build
 import android.view.Surface
-import android.view.WindowManager
 import androidx.annotation.RequiresApi
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
@@ -20,8 +19,8 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import io.iskopasi.shader_test.DrawerController
-import io.iskopasi.shader_test.utils.CameraUtils
 import io.iskopasi.shader_test.utils.bindCamera
+import io.iskopasi.shader_test.utils.getSurface
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
@@ -30,22 +29,13 @@ import kotlin.coroutines.suspendCoroutine
 fun CameraView(controller: DrawerController) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val isFront = false
     val view = remember {
         GLSurfaceView(context).apply {
-//            val size = CameraUtils.getMaxSizeFront(context)
-            val size = CameraUtils.getMaxSizeBack(context)
-            val bounds = ContextCompat.getSystemService(context, WindowManager::class.java)!!
-                .currentWindowMetrics
-                .bounds
-
-            val renderer = MyGLRenderer(this, size, bounds.width(), bounds.height())
-            setEGLContextClientVersion(2)
-            setRenderer(renderer)
-            renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
-
-            Surface(renderer.mSurfaceTexture).bindCamera(
+            Surface(getSurface(isFront).mSurfaceTexture).bindCamera(
                 context,
-                lifecycleOwner
+                lifecycleOwner,
+                isFront
             )
         }
     }

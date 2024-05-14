@@ -1,6 +1,7 @@
 package io.iskopasi.shader_test.utils
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.SurfaceTexture
@@ -12,61 +13,75 @@ import android.hardware.camera2.CameraMetadata
 import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.params.OutputConfiguration
 import android.hardware.camera2.params.SessionConfiguration
+import android.opengl.GLSurfaceView
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.util.Size
 import android.view.Surface
+import android.view.WindowManager
 import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.os.ExecutorCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
+import io.iskopasi.shader_test.ui.composables.MyGLRenderer
 
 
-class Camera2Impl : DefaultLifecycleObserver {
-    private lateinit var _cameraThread: HandlerThread
-    private lateinit var _handler: Handler
-
-    private lateinit var session: CameraCaptureSession
-    private lateinit var cameraDevice: CameraDevice
+class Camera2Impl(
+    private val context: Context,
+    private val surface: Surface,
+    private val isFront: Boolean
+) :
+    DefaultLifecycleObserver {
+    private var _cameraThread: HandlerThread? = null
+    private var _handler: Handler? = null
+    private var _session: CameraCaptureSession? = null
+    private var _cameraDevice: CameraDevice? = null
     private lateinit var cameraCharacteristic: CameraCharacteristics
-
-//    class ReduceComplexComponent : LifecycleObserver{
-//
-//        registerLifecycle(lifecycle : Lifecycle){
-//            lifecycle.addObserver(this)
-//        }
-//
-//        @OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
-//        fun resume() {
-//            Log.d("OnResume","ON_RESUME")
-//        }
-//
-//        @OnLifecycleEvent(Lifecycle.Event.ON_PAUSE)
-//        fun pause() {
-//            Log.d("onPause","ON_PAUSE")
-//        }
-//    }
 
     init {
         createCameraThread()
     }
 
     private fun closeCamera() {
-        session.close()
-        cameraDevice.close()
+        _session?.close()
+        _cameraDevice?.close()
+    }
+
+    override fun onResume(owner: LifecycleOwner) {
+        createCameraThread()
+        if (_cameraDevice != null) {
+            openCamera()
+        }
+    }
+
+    override fun onPause(owner: LifecycleOwner) {
+        closeCamera()
+
+        _cameraThread?.quitSafely()
+        try {
+            _cameraThread?.join()
+            _handler?.looper?.quitSafely()
+        } catch (e: InterruptedException) {
+            e.printStackTrace()
+        } finally {
+            _cameraThread = null
+            _handler = null
+        }
     }
 
     private fun createCameraThread() {
         _cameraThread = HandlerThread("Camera thread").apply { start() }
-        _handler = Handler(_cameraThread.looper)
+        _handler = Handler(_cameraThread!!.looper)
     }
 
-    fun getCameraCaptureCallback(surface: Surface) =
+    fun getCameraCaptureCallback() =
         object : CameraCaptureSession.StateCallback() {
             override fun onConfigured(session: CameraCaptureSession) {
+                _session = session
+
                 // Build request to the camera device to start streaming data into surface
                 val request =
                     session.device.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
@@ -91,10 +106,12 @@ class Camera2Impl : DefaultLifecycleObserver {
             }
         }
 
-    private fun getCameraCallback(surface: Surface) =
+    private fun getCameraCallback() =
         object : CameraDevice.StateCallback() {
             @RequiresApi(Build.VERSION_CODES.R)
             override fun onOpened(cameraDevice: CameraDevice) {
+                _cameraDevice = cameraDevice
+
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                     cameraDevice.createCaptureSession(
                         SessionConfiguration(
@@ -105,14 +122,14 @@ class Camera2Impl : DefaultLifecycleObserver {
 //                                    mirrorMode = OutputConfiguration.MIRROR_MODE_V
 //                                }
                             }),
-                            ExecutorCompat.create(_handler),
-                            getCameraCaptureCallback(surface)
+                            ExecutorCompat.create(_handler!!),
+                            getCameraCaptureCallback()
                         )
                     )
                 } else {
                     cameraDevice.createCaptureSession(
                         listOf(surface),
-                        getCameraCaptureCallback(surface),
+                        getCameraCaptureCallback(),
                         _handler
                     )
                 }
@@ -124,43 +141,39 @@ class Camera2Impl : DefaultLifecycleObserver {
 
             override fun onError(camera: CameraDevice, error: Int) {
                 "Error: $camera $error".e
-                camera.close()
             }
         }
 
-    override fun onResume(owner: LifecycleOwner) {
-        "-->> onResume".e
-        createCameraThread()
-    }
 
-    override fun onPause(owner: LifecycleOwner) {
-        "-->> onPause".e
-        _cameraThread.quitSafely()
-        try {
-            _cameraThread.join()
-        } catch (e: InterruptedException) {
-            e.printStackTrace()
-        }
-    }
-
-    fun bind(context: Context, surface: Surface) {
+    fun bind(
+        lifecycleOwner: LifecycleOwner
+    ): Camera2Impl {
         if (ActivityCompat.checkSelfPermission(
                 context,
                 Manifest.permission.CAMERA
             ) != PackageManager.PERMISSION_GRANTED
         ) {
             "Permission check failed.".e
-            return
+            return this
         }
 
+        lifecycleOwner.lifecycle.addObserver(this)
+        openCamera()
+
 //        val rotation = ContextCompat.getDisplayOrDefault(context).rotation
+
+        return this
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun openCamera() {
         bg {
             ContextCompat.getSystemService(context, CameraManager::class.java)
                 ?.let { cameraManager ->
                     // Select front-facing camera
                     val (cameraId, camCharacteristic) = CameraUtils.getCameraCharacteristic(
                         context,
-                        CameraMetadata.LENS_FACING_BACK
+                        if (isFront) CameraMetadata.LENS_FACING_FRONT else CameraMetadata.LENS_FACING_BACK
                     )
 
                     cameraCharacteristic = camCharacteristic
@@ -168,7 +181,7 @@ class Camera2Impl : DefaultLifecycleObserver {
 
                     cameraManager.openCamera(
                         cameraId,
-                        getCameraCallback(surface),
+                        getCameraCallback(),
                         _handler
                     )
                 }
@@ -213,8 +226,33 @@ object CameraUtils {
             .first()
 }
 
-fun Surface.bindCamera(context: Context, lifecycleOwner: LifecycleOwner): Surface {
-    Camera2Impl().bind(context, this)
+@RequiresApi(Build.VERSION_CODES.R)
+fun GLSurfaceView.getSurface(isFront: Boolean = false): MyGLRenderer {
+//            val size = CameraUtils.getMaxSizeFront(context)
+    val size = CameraUtils.getMaxSizeBack(context)
+    val bounds = ContextCompat.getSystemService(context, WindowManager::class.java)!!
+        .currentWindowMetrics
+        .bounds
 
+    val renderer = MyGLRenderer(
+        this,
+        size,
+        bounds.width(),
+        bounds.height(),
+        isFront
+    )
+    setEGLContextClientVersion(2)
+    setRenderer(renderer)
+    renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
+
+    return renderer
+}
+
+fun Surface.bindCamera(
+    context: Context,
+    lifecycleOwner: LifecycleOwner,
+    isFront: Boolean
+): Surface {
+    Camera2Impl(context, this, isFront).bind(lifecycleOwner)
     return this
 }
