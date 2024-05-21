@@ -34,18 +34,14 @@ void main() {
     vec4 value = vec4(0.0, 0.0, 0.0, 1.0);
     //    float r0 = rand2(v_textureCoord + iTime * 0.1);
     //    float r1 = gold_noise(v_textureCoord, r0);
-    float yRow = floor(v_textureCoord.y * 1000.0);
+    float yRow = floor(v_textureCoord.x * 10000.0);
 
     if (mod(yRow + iTime, 5.0) == 0.0) {
         float r0 = rand2(v_textureCoord + iTime);
 
-        int r1Sign = 1;
-        int r2Sign = 1;
-        int r3Sign = 1;
-
-        if (mod(floor(r0 * 100.0), 2.0) == 0.0) r1Sign = -1;
-        if (mod(floor(r0 * 100.0), 3.0) == 0.0) r2Sign = -1;
-        if (mod(floor(r0 * 100.0), 5.0) == 0.0) r3Sign = -1;
+        int r1Sign = mod(floor(r0 * 100.0), 2.0) == 0.0 ? -1 : 1;
+        int r2Sign = mod(floor(r0 * 100.0), 3.0) == 0.0 ? -1 : 1;
+        int r3Sign = mod(floor(r0 * 100.0), 5.0) == 0.0 ? -1 : 1;
 
         int r1 = int(rand(v_textureCoord + iTime) * 100.0) * r1Sign;
         int r2 = int(rand(v_textureCoord + iTime + float(r1)) * 10.0) * r2Sign;
@@ -56,6 +52,7 @@ void main() {
         float os2 = 0.01;
         int redFlag = 0;
 
+        // Calculate offsets for edge detector
         if (iRand > 0.8) {
             os0 = -0.0101 - rand(v_textureCoord + iRand) / 10000.0;
             os1 = 0.01 + rand(v_textureCoord + iRand * 2.0) / 10000.0;
@@ -80,14 +77,16 @@ void main() {
                 value += texture2D(u_texture, coord) * float(edge[x][y]);
             }
         }
-        value /= 9.0;
+        value /= 4.0;
         value.a = 1.0;
+
+        vec4 gl_FragColor = texture2D(u_texture, v_textureCoord);
 
         // Removing brightness
         if (
-        value.r > 0.3 &&
-        value.g > 0.3 &&
-        value.b > 0.3
+        value.r > 0.8 &&
+        value.g > 0.8 &&
+        value.b > 0.8
         ) {
             value.r = 0.0;
             value.g = 0.0;

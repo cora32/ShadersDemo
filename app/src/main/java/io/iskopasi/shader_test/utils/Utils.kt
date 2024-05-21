@@ -1,9 +1,13 @@
 package io.iskopasi.shader_test.utils
 
+import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Picture
+import android.media.Image
 import android.os.Build
+import android.provider.MediaStore
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
@@ -30,6 +34,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.io.IOException
 
 val Picture.toBitmap: Bitmap
     get() {
@@ -141,3 +146,46 @@ val String.e: String
         Log.e("-->", this)
         return this
     }
+
+
+fun Image.toBitmap(): Bitmap = planes[0].buffer.let {
+    val bytes = ByteArray(it.remaining())
+    it.get(bytes)
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, null)
+}
+
+fun Image.saveToFile(context: Context) = toBitmap().saveToFile(context)
+
+fun Bitmap.saveToFile(context: Context) {
+    // Add a specific media item.
+    val resolver = context.contentResolver
+
+    val imageStorageAddress = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+    } else {
+        MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+    }
+
+    val imageDetails = ContentValues().apply {
+        put(MediaStore.Images.Media.DISPLAY_NAME, "shadertoy_${System.currentTimeMillis()}.jpg")
+        put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+        put(MediaStore.MediaColumns.DATE_ADDED, System.currentTimeMillis())
+    }
+
+    try {
+        // Save the image.
+        resolver.insert(imageStorageAddress, imageDetails)?.let { uri ->
+            resolver.openOutputStream(uri)?.use { outStream ->
+                val isBitmapCompressed =
+                    compress(
+                        Bitmap.CompressFormat.JPEG,
+                        100,
+                        outStream
+                    )
+                recycle()
+            } ?: throw IOException("Failed to get output stream.")
+        } ?: throw IOException("Failed to create new MediaStore record.")
+    } catch (e: IOException) {
+        throw e
+    }
+}

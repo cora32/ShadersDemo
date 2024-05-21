@@ -9,6 +9,7 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -19,10 +20,12 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import io.iskopasi.shader_test.DrawerController
+import io.iskopasi.shader_test.utils.Camera2Controller
 import io.iskopasi.shader_test.utils.bindCamera
 import io.iskopasi.shader_test.utils.getSurface
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
+
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
@@ -30,9 +33,13 @@ fun CameraView(controller: DrawerController) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val isFront = false
+    var cameraController: Camera2Controller? = null
+    var renderer: MyGLRenderer? = null
     val view = remember {
         GLSurfaceView(context).apply {
-            Surface(getSurface(isFront).mSurfaceTexture).bindCamera(
+            renderer = getSurface(isFront)
+            val surface = Surface(renderer!!.mSurfaceTexture)
+            cameraController = surface.bindCamera(
                 context,
                 lifecycleOwner,
                 isFront
@@ -46,7 +53,12 @@ fun CameraView(controller: DrawerController) {
 
     AndroidView(
         factory = { view },
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
+            .clickable {
+                cameraController!!.snapshot(context)
+                renderer!!.takeScreenshot()
+            }
     )
 }
 

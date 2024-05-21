@@ -4,20 +4,27 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.ImageFormat
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCaptureSession
+import android.hardware.camera2.CameraCaptureSession.CaptureCallback
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CameraMetadata
+import android.hardware.camera2.CaptureFailure
 import android.hardware.camera2.CaptureRequest
+import android.hardware.camera2.CaptureResult
+import android.hardware.camera2.TotalCaptureResult
 import android.hardware.camera2.params.OutputConfiguration
 import android.hardware.camera2.params.SessionConfiguration
+import android.media.ImageReader
 import android.opengl.GLSurfaceView
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.util.Size
+import android.util.SparseIntArray
 import android.view.Surface
 import android.view.WindowManager
 import androidx.annotation.RequiresApi
@@ -28,8 +35,7 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import io.iskopasi.shader_test.ui.composables.MyGLRenderer
 
-
-class Camera2Impl(
+class Camera2Controller(
     private val context: Context,
     private val surface: Surface,
     private val isFront: Boolean
@@ -39,7 +45,82 @@ class Camera2Impl(
     private var _handler: Handler? = null
     private var _session: CameraCaptureSession? = null
     private var _cameraDevice: CameraDevice? = null
+    private var _imageReader: ImageReader? = null
     private lateinit var cameraCharacteristic: CameraCharacteristics
+
+    private val captureCallback = object : CaptureCallback() {
+        override fun onCaptureStarted(
+            session: CameraCaptureSession,
+            request: CaptureRequest,
+            timestamp: Long,
+            frameNumber: Long
+        ) {
+            "--> onCaptureStarted".e
+            super.onCaptureStarted(session, request, timestamp, frameNumber)
+
+        }
+
+        override fun onReadoutStarted(
+            session: CameraCaptureSession,
+            request: CaptureRequest,
+            timestamp: Long,
+            frameNumber: Long
+        ) {
+            "--> onReadoutStarted".e
+            super.onReadoutStarted(session, request, timestamp, frameNumber)
+        }
+
+        override fun onCaptureProgressed(
+            session: CameraCaptureSession,
+            request: CaptureRequest,
+            partialResult: CaptureResult
+        ) {
+            "--> onCaptureProgressed".e
+            super.onCaptureProgressed(session, request, partialResult)
+        }
+
+        override fun onCaptureCompleted(
+            session: CameraCaptureSession,
+            request: CaptureRequest,
+            result: TotalCaptureResult
+        ) {
+            "--> onCaptureCompleted".e
+            super.onCaptureCompleted(session, request, result)
+        }
+
+        override fun onCaptureFailed(
+            session: CameraCaptureSession,
+            request: CaptureRequest,
+            failure: CaptureFailure
+        ) {
+            "--> onCaptureFailed".e
+            super.onCaptureFailed(session, request, failure)
+        }
+
+        override fun onCaptureSequenceCompleted(
+            session: CameraCaptureSession,
+            sequenceId: Int,
+            frameNumber: Long
+        ) {
+            "--> onCaptureSequenceCompleted".e
+            super.onCaptureSequenceCompleted(session, sequenceId, frameNumber)
+        }
+
+        override fun onCaptureSequenceAborted(session: CameraCaptureSession, sequenceId: Int) {
+            "--> onCaptureSequenceAborted".e
+            super.onCaptureSequenceAborted(session, sequenceId)
+        }
+
+        override fun onCaptureBufferLost(
+            session: CameraCaptureSession,
+            request: CaptureRequest,
+            target: Surface,
+            frameNumber: Long
+        ) {
+            "--> onCaptureBufferLost".e
+            super.onCaptureBufferLost(session, request, target, frameNumber)
+        }
+    }
 
     init {
         createCameraThread()
@@ -115,18 +196,22 @@ class Camera2Impl(
                     cameraDevice.createCaptureSession(
                         SessionConfiguration(
                             SessionConfiguration.SESSION_REGULAR,
-                            listOf(OutputConfiguration(surface).apply {
-                                // Works for SurfaceView but not for GLSurfaceView
+                            listOf(
+                                OutputConfiguration(surface).apply {
+                                    // Works for SurfaceView but not for GLSurfaceView
 //                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
 //                                    mirrorMode = OutputConfiguration.MIRROR_MODE_V
 //                                }
-                            }),
+                                },
+//                                OutputConfiguration(_imageReader!!.surface)
+                            ),
                             ExecutorCompat.create(_handler!!),
                             getCameraCaptureCallback()
                         )
                     )
                 } else {
                     cameraDevice.createCaptureSession(
+//                        listOf(surface, _imageReader!!.surface),
                         listOf(surface),
                         getCameraCaptureCallback(),
                         _handler
@@ -139,14 +224,23 @@ class Camera2Impl(
             }
 
             override fun onError(camera: CameraDevice, error: Int) {
-                "Error: $camera $error".e
+                val errorMsg = when (error) {
+                    ERROR_CAMERA_DEVICE -> "Fatal (device)"
+                    ERROR_CAMERA_DISABLED -> "Device policy"
+                    ERROR_CAMERA_IN_USE -> "Camera in use"
+                    ERROR_CAMERA_SERVICE -> "Fatal (service)"
+                    ERROR_MAX_CAMERAS_IN_USE -> "Maximum cameras in use"
+                    else -> "Unknown"
+                }
+
+                "Error: $camera $error $errorMsg".e
             }
         }
 
 
     fun bind(
         lifecycleOwner: LifecycleOwner
-    ): Camera2Impl {
+    ): Camera2Controller {
         if (ActivityCompat.checkSelfPermission(
                 context,
                 Manifest.permission.CAMERA
@@ -178,6 +272,7 @@ class Camera2Impl(
                     cameraCharacteristic = camCharacteristic
 //                    listSupportedSized()
 
+                    createImageReader()
                     cameraManager.openCamera(
                         cameraId,
                         getCameraCallback(),
@@ -185,6 +280,47 @@ class Camera2Impl(
                     )
                 }
         }
+    }
+
+    private fun createImageReader() {
+        val previewSize =
+            cameraCharacteristic.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)!!
+                .getOutputSizes(ImageFormat.JPEG).maxByOrNull { it.height * it.width }!!
+        _imageReader = ImageReader.newInstance(
+            previewSize.width,
+            previewSize.height,
+            ImageFormat.JPEG,
+            1
+        ).apply {
+            setOnImageAvailableListener(
+                { reader ->
+                    reader.acquireLatestImage().use {
+                        "---> Saving image.... ${it.timestamp} ${Thread.currentThread().name}".e
+                        it.saveToFile(context)
+                        "---> Got image! ${it.timestamp} ${Thread.currentThread().name}".e
+                    }
+                },
+                _handler
+            )
+        }
+    }
+
+    fun snapshot(context: Context) {
+        val orientations: SparseIntArray = SparseIntArray(4).apply {
+            append(Surface.ROTATION_0, 0)
+            append(Surface.ROTATION_90, 90)
+            append(Surface.ROTATION_180, 180)
+            append(Surface.ROTATION_270, 270)
+        }
+
+        val captureRequestBuilder =
+            _cameraDevice!!.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE)
+        captureRequestBuilder.addTarget(_imageReader!!.surface)
+
+        val rotation = ContextCompat.getSystemService(context, WindowManager::class.java)!!
+            .defaultDisplay.rotation
+        captureRequestBuilder.set(CaptureRequest.JPEG_ORIENTATION, orientations.get(rotation))
+        _session!!.capture(captureRequestBuilder.build(), captureCallback, null)
     }
 
     private fun listSupportedSized() {
@@ -251,7 +387,4 @@ fun Surface.bindCamera(
     context: Context,
     lifecycleOwner: LifecycleOwner,
     isFront: Boolean
-): Surface {
-    Camera2Impl(context, this, isFront).bind(lifecycleOwner)
-    return this
-}
+): Camera2Controller = Camera2Controller(context, this, isFront).bind(lifecycleOwner)

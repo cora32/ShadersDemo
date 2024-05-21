@@ -1,18 +1,22 @@
 package io.iskopasi.shader_test.ui.composables
 
+import android.graphics.Bitmap
 import android.graphics.SurfaceTexture
 import android.graphics.SurfaceTexture.OnFrameAvailableListener
 import android.opengl.GLES11Ext
 import android.opengl.GLES20
 import android.opengl.GLES20.glGetUniformLocation
+import android.opengl.GLException
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix
 import android.util.Size
 import io.iskopasi.shader_test.utils.e
 import io.iskopasi.shader_test.utils.loadShader
+import io.iskopasi.shader_test.utils.saveToFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
+import java.nio.IntBuffer
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import kotlin.random.Random
@@ -34,6 +38,7 @@ class MyGLRenderer(
     private val COORDS_PER_VERTEX = 2
     private val TEXTURE_COORDS_PER_VERTEX = 2
     private val rotationAngle = if (isFront) 90f else -90f
+    private var takeScreenshot = false
 
     //vertex shader
     private var vertexShaderCode = """
@@ -47,19 +52,6 @@ class MyGLRenderer(
            v_textureCoord = a_textureCoord;
          }
          """.trim()
-
-    // fragment shader
-    private var fragmentShaderCode2 = """
-         #extension GL_OES_EGL_image_external : require
-         precision mediump float;
-         uniform samplerExternalOES u_texture;
-         varying vec2 v_textureCoord;
-         
-         void main() {
-           gl_FragColor = texture2D(u_texture, v_textureCoord);
-           gl_FragColor.r = 1.0;
-         }
-         """.trimIndent()
 
     //Vertex coordinate data, indicating the position and size of the preview image.
     private val VERTEX_COORDS = floatArrayOf(
@@ -137,6 +129,35 @@ class MyGLRenderer(
         GLES20.glViewport(0, 0, p1, p2)
     }
 
+    @Throws(OutOfMemoryError::class)
+    fun createBitmapFromGLSurface(x: Int, y: Int, w: Int, h: Int, gl: GL10): Bitmap? {
+        val bitmapBuffer = IntArray(w * h)
+        val bitmapSource = IntArray(w * h)
+        val intBuffer = IntBuffer.wrap(bitmapBuffer)
+        intBuffer.position(0)
+
+        try {
+            gl.glReadPixels(x, y, w, h, GL10.GL_RGBA, GL10.GL_UNSIGNED_BYTE, intBuffer)
+            var offset1: Int
+            var offset2: Int
+            for (i in 0 until h) {
+                offset1 = i * w
+                offset2 = (h - i - 1) * w
+                for (j in 0 until w) {
+                    val texturePixel = bitmapBuffer[offset1 + j]
+                    val blue = (texturePixel shr 16) and 0xff
+                    val red = (texturePixel shl 16) and 0x00ff0000
+                    val pixel = (texturePixel and -0xff0100) or red or blue
+                    bitmapSource[offset2 + j] = pixel
+                }
+            }
+        } catch (e: GLException) {
+            return null
+        }
+
+        return Bitmap.createBitmap(bitmapSource, w, h, Bitmap.Config.ARGB_8888)
+    }
+
     /**
      * Draw each frame, perform actual drawing operations here, such as clearing the screen, drawing textures, etc.
      */
@@ -179,6 +200,11 @@ class MyGLRenderer(
         GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, textureId)
         //Draw the primitives of the triangle strip
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, VERTEX_COORDS.size / COORDS_PER_VERTEX)
+
+        if (takeScreenshot) {
+            takeScreenshot = false
+            makeCringeshot()
+        }
     }
 
     /**
@@ -247,5 +273,43 @@ class MyGLRenderer(
     override fun onFrameAvailable(p0: SurfaceTexture?) {
         // Called back when a new frame is available from the camera, some processing can be done here
         mGLSurfaceView.requestRender()
+    }
+
+    fun takeScreenshot() {
+        takeScreenshot = true
+    }
+
+    private fun makeCringeshot() {
+        // TODO: replace cringeshot with ImageReader + GL
+        val screenshotSize = width * height
+        ByteBuffer.allocateDirect(screenshotSize * 4).apply {
+            order(ByteOrder.nativeOrder())
+            GLES20.glReadPixels(
+                0,
+                0,
+                width,
+                height,
+                GLES20.GL_RGBA,
+                GLES20.GL_UNSIGNED_BYTE,
+                this
+            )
+
+            val pixelsBuffer = IntArray(screenshotSize).let { pixelsBuffer ->
+                asIntBuffer()[pixelsBuffer]
+
+                for (i in 0 until screenshotSize) {
+                    // The alpha and green channels' positions are preserved while the red and blue are swapped
+                    pixelsBuffer[i] =
+                        ((pixelsBuffer[i] and -0xff0100)) or ((pixelsBuffer[i] and 0x000000ff) shl 16) or ((pixelsBuffer[i] and 0x00ff0000) shr 16)
+                }
+
+                pixelsBuffer
+            }
+
+            Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).apply {
+                setPixels(pixelsBuffer, screenshotSize - width, -width, 0, 0, width, height)
+                saveToFile(mGLSurfaceView.context)
+            }
+        }
     }
 }
