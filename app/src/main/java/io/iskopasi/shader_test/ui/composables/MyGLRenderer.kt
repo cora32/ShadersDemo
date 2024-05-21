@@ -15,6 +15,7 @@ import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
+import kotlin.random.Random
 
 
 class MyGLRenderer(
@@ -91,6 +92,7 @@ class MyGLRenderer(
     private var uMVPMatrixHandle = 0
     private var iResolutionHandle = 0
     private var iTimeHandle = 0
+    private var iRandHandle = 0
     private val mvpMatrix = FloatArray(16)
 
     init {
@@ -105,7 +107,7 @@ class MyGLRenderer(
      * Initialize OpenGL and load the vertex shader and fragment shader. By compiling and linking the shader, creating the shader program and getting a handle to the vertex attribute.
      */
     override fun onSurfaceCreated(p0: GL10?, p1: EGLConfig?) {
-        val fragmentShaderCode = mGLSurfaceView.context.loadShader("glitch_shader.fs")
+        val fragmentShaderCode = mGLSurfaceView.context.loadShader("glitch_shader.glsl")
 
         // Initialize the OpenGL environment here, such as creating textures, shader programs, etc.
         //Set the color value when clearing the color buffer to black
@@ -125,6 +127,7 @@ class MyGLRenderer(
         uMVPMatrixHandle = glGetUniformLocation(programId, "uMVPMatrix")
         iResolutionHandle = glGetUniformLocation(programId, "iResolution")
         iTimeHandle = glGetUniformLocation(programId, "iTime")
+        iRandHandle = glGetUniformLocation(programId, "iRand")
         //Use shader program
         GLES20.glUseProgram(programId)
     }
@@ -145,6 +148,7 @@ class MyGLRenderer(
 
         GLES20.glUniform2iv(iResolutionHandle, 1, intArrayOf(width, height), 0)
         GLES20.glUniform1f(iTimeHandle, timeProgress++)
+        GLES20.glUniform1f(iRandHandle, Random.nextFloat())
 
         //Update texture image
         mSurfaceTexture?.updateTexImage()

@@ -85,7 +85,6 @@ class Camera2Impl(
                 // Build request to the camera device to start streaming data into surface
                 val request =
                     session.device.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
-                        set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_AUTO)
 //                        set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH)
 //                        set(CaptureRequest.HOT_PIXEL_MODE, CaptureRequest.HOT_PIXEL_MODE_HIGH_QUALITY)
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
