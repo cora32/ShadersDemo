@@ -1,7 +1,6 @@
 package io.iskopasi.shader_test
 
 import android.Manifest
-import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -26,10 +25,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFontFamilyResolver
 import androidx.compose.ui.text.font.createFontFamilyResolver
-import androidx.core.content.ContextCompat
 import io.iskopasi.shader_test.ui.composables.CameraView
 import io.iskopasi.shader_test.ui.theme.Shader_testTheme
 import io.iskopasi.shader_test.utils.Shaders
+import io.iskopasi.shader_test.utils.checkPermissions
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -39,8 +38,8 @@ class MainActivity : ComponentActivity() {
     private val controller: DrawerController by viewModels()
 
     private val cameraPermissionRequest =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-            if (isGranted) {
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { resultMap ->
+            if (resultMap.values.all { it }) {
                 // Implement camera related  code
             } else {
                 Toast.makeText(this, "We need your permission", Toast.LENGTH_LONG)
@@ -63,20 +62,19 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun onCameraSwitchChanged(enabled: Boolean) {
-        when (PackageManager.PERMISSION_GRANTED) {
-            ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.CAMERA
-            ) -> {
-                controller.onCameraViewSwitch(enabled)
-                scope.launch {
-                    drawerState.close()
-                }
+        if (checkPermissions(this)) {
+            controller.onCameraViewSwitch(enabled)
+            scope.launch {
+                drawerState.close()
             }
-
-            else -> {
-                cameraPermissionRequest.launch(Manifest.permission.CAMERA)
-            }
+        } else {
+            cameraPermissionRequest.launch(
+                arrayOf(
+                    Manifest.permission.CAMERA,
+                    Manifest.permission.RECORD_AUDIO,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+                )
+            )
         }
     }
 

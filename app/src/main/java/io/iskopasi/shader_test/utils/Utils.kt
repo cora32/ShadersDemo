@@ -1,7 +1,9 @@
 package io.iskopasi.shader_test.utils
 
+import android.Manifest
 import android.content.ContentValues
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Picture
@@ -29,6 +31,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -128,10 +131,12 @@ fun Modifier.applyShader(shader: Shaders) = composed {
     }
 }
 
-fun bg(block: () -> Unit): Job {
-    return CoroutineScope(Dispatchers.IO).launch {
-        block()
-    }
+fun bg(block: suspend (CoroutineScope) -> Unit): Job = CoroutineScope(Dispatchers.IO).launch {
+    block(this)
+}
+
+fun main(block: suspend CoroutineScope.() -> Unit): Job = CoroutineScope(Dispatchers.Main).launch {
+    block(this)
 }
 
 fun Context.loadShader(filepath: String): String = assets
@@ -147,6 +152,18 @@ val String.e: String
         return this
     }
 
+fun checkPermissions(context: Context) = ContextCompat.checkSelfPermission(
+    context,
+    Manifest.permission.CAMERA
+) == PackageManager.PERMISSION_GRANTED
+        && ContextCompat.checkSelfPermission(
+    context,
+    Manifest.permission.RECORD_AUDIO
+) == PackageManager.PERMISSION_GRANTED
+//        && ContextCompat.checkSelfPermission(
+//    context,
+//    Manifest.permission.WRITE_EXTERNAL_STORAGE
+//) == PackageManager.PERMISSION_GRANTED
 
 fun Image.toBitmap(): Bitmap = planes[0].buffer.let {
     val bytes = ByteArray(it.remaining())

@@ -20,8 +20,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import io.iskopasi.shader_test.DrawerController
-import io.iskopasi.shader_test.utils.Camera2Controller
-import io.iskopasi.shader_test.utils.bindCamera
+import io.iskopasi.shader_test.utils.Cam2
 import io.iskopasi.shader_test.utils.getSurface
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
@@ -33,17 +32,22 @@ fun CameraView(controller: DrawerController) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val isFront = false
-    var cameraController: Camera2Controller? = null
+    var cameraController: Cam2? = null
+//    var cameraController: Camera2Controller? = null
     var renderer: MyGLRenderer? = null
     val view = remember {
-        GLSurfaceView(context).apply {
-            renderer = getSurface(isFront)
+        GLSurfaceView(context).let { glView ->
+            renderer = glView.getSurface(isFront)
             val surface = Surface(renderer!!.mSurfaceTexture)
-            cameraController = surface.bindCamera(
-                context,
-                lifecycleOwner,
-                isFront
-            )
+            cameraController = Cam2().apply {
+                start(context, surface, glView)
+            }
+//            cameraController = surface.bindCamera(
+//                context,
+//                lifecycleOwner,
+//                isFront
+//            )
+            glView
         }
     }
 
@@ -56,8 +60,9 @@ fun CameraView(controller: DrawerController) {
         modifier = Modifier
             .fillMaxSize()
             .clickable {
-                cameraController!!.snapshot(context)
-                renderer!!.takeScreenshot()
+                cameraController!!.startVideoRec(context)
+//                cameraController!!.snapshot(context)
+//                renderer!!.takeScreenshot()
             }
     )
 }
