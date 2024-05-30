@@ -3,10 +3,8 @@
 uniform samplerExternalOES u_texture;
 varying vec2 v_textureCoord;
 
-
 uniform float iTime;
 uniform float iRand;
-uniform vec2 iResolution;
 const mat3 edge = mat3(3, -6, -1, -4, 16, -4, -1, -6, 3);
 const mat3 non = mat3(1, 1, 1, 1, 1, 1, 1, 1, 1);
 const int radius = 3;
@@ -80,8 +78,6 @@ void main() {
         value /= 4.0;
         value.a = 1.0;
 
-        vec4 gl_FragColor = texture2D(u_texture, v_textureCoord);
-
         // Removing brightness
         if (
         value.r > 0.8 &&
@@ -111,6 +107,8 @@ void main() {
             value.r -= 0.3;
             value.b -= 0.1;
         }
+
+        //        value = texture2D(u_texture, v_textureCoord);
     }
 
     gl_FragColor = value;

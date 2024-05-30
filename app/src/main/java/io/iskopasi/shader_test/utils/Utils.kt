@@ -152,6 +152,7 @@ val String.e: String
         return this
     }
 
+
 fun checkPermissions(context: Context) = ContextCompat.checkSelfPermission(
     context,
     Manifest.permission.CAMERA

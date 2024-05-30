@@ -14,19 +14,19 @@
  * limitations under the License.
  */
 
-package io.iskopasi.shader_test.utils
+package io.iskopasi.shader_test.utils.camera_utils
 
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CaptureRequest
-import android.opengl.GLSurfaceView
 import android.util.Size
 import android.view.Surface
+import android.view.SurfaceView
 
 abstract class Pipeline(
     width: Int, height: Int, fps: Int, filterOn: Boolean,
     dynamicRange: Long, characteristics: CameraCharacteristics, encoder: EncoderWrapper,
-    viewFinder: GLSurfaceView
+    viewFinder: SurfaceView
 ) {
     protected val width = width
     protected val height = height

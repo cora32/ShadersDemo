@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.iskopasi.shader_test.utils
+package io.iskopasi.shader_test.utils.camera_utils
 
 import android.content.Context
 import android.hardware.camera2.params.DynamicRangeProfiles
@@ -120,7 +120,21 @@ class EncoderWrapper(
             setAudioSource(MediaRecorder.AudioSource.MIC)
             setVideoSource(MediaRecorder.VideoSource.SURFACE)
             setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+//            setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+
+            val videoEncoder = when (mVideoCodec) {
+                VIDEO_CODEC_ID_H264 ->
+                    MediaRecorder.VideoEncoder.H264
+
+                VIDEO_CODEC_ID_HEVC ->
+                    MediaRecorder.VideoEncoder.HEVC
+
+                VIDEO_CODEC_ID_AV1 ->
+                    MediaRecorder.VideoEncoder.AV1
+
+                else -> throw IllegalArgumentException("Unknown video codec id")
+            }
+            setVideoEncoder(videoEncoder)
             setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
 
             setOutputFile(mOutputFile.absolutePath)
@@ -128,36 +142,11 @@ class EncoderWrapper(
             CamcorderProfile.get(CamcorderProfile.QUALITY_1080P).let { profile ->
                 setVideoFrameRate(profile.videoFrameRate)
                 setVideoSize(profile.videoFrameWidth, profile.videoFrameHeight)
-//                setVideoSize(720, 480)
                 setVideoEncodingBitRate(profile.videoBitRate)
                 setAudioEncodingBitRate(profile.audioBitRate)
                 setAudioSamplingRate(profile.audioSampleRate)
             }
 
-//            setAudioSource(MediaRecorder.AudioSource.MIC)
-//            setVideoSource(MediaRecorder.VideoSource.SURFACE)
-//            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-//            setOutputFile(mOutputFile.absolutePath)
-//            setVideoEncodingBitRate(mBitRate)
-//            if (mFrameRate > 0) setVideoFrameRate(mFrameRate)
-//            setVideoSize(mWidth, mHeight)
-//
-//            val videoEncoder = when (mVideoCodec) {
-//                VideoCodecFragment.VIDEO_CODEC_ID_H264 ->
-//                        MediaRecorder.VideoEncoder.H264
-//                VideoCodecFragment.VIDEO_CODEC_ID_HEVC ->
-//                        MediaRecorder.VideoEncoder.HEVC
-//                VideoCodecFragment.VIDEO_CODEC_ID_AV1 ->
-//                        MediaRecorder.VideoEncoder.AV1
-//                else -> throw IllegalArgumentException("Unknown video codec id")
-//            }
-//
-//            setVideoEncoder(videoEncoder)
-//            setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-//            setAudioEncodingBitRate(16)
-//            setAudioSamplingRate(44100)
-
-            Log.e("->>", "surface: $surface ${surface.toString()}")
             setInputSurface(surface)
             setOrientationHint(mOrientationHint)
         }

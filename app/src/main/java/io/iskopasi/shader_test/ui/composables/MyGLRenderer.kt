@@ -37,7 +37,9 @@ class MyGLRenderer(
     private var textureId: Int = 0
     private val COORDS_PER_VERTEX = 2
     private val TEXTURE_COORDS_PER_VERTEX = 2
-    private val rotationAngle = if (isFront) 90f else -90f
+
+    //    private val rotationAngle = if (isFront) 90f else -90f
+    private val rotationAngle = 90f
     private var takeScreenshot = false
 
     //vertex shader
@@ -82,7 +84,6 @@ class MyGLRenderer(
     private var positionHandle = 0
     private var textureCoordHandle = 0
     private var uMVPMatrixHandle = 0
-    private var iResolutionHandle = 0
     private var iTimeHandle = 0
     private var iRandHandle = 0
     private val mvpMatrix = FloatArray(16)
@@ -92,6 +93,7 @@ class MyGLRenderer(
         mSurfaceTexture = SurfaceTexture(textureId)
         "---> MyGLRenderer setting size: ${size.width}, ${size.height}".e
         mSurfaceTexture?.setDefaultBufferSize(size.width, size.height)
+//        mSurfaceTexture?.setDefaultBufferSize(2400, 1080)
         mSurfaceTexture?.setOnFrameAvailableListener(this)
     }
 
@@ -117,7 +119,6 @@ class MyGLRenderer(
         positionHandle = GLES20.glGetAttribLocation(programId, "a_position")
         textureCoordHandle = GLES20.glGetAttribLocation(programId, "a_textureCoord")
         uMVPMatrixHandle = glGetUniformLocation(programId, "uMVPMatrix")
-        iResolutionHandle = glGetUniformLocation(programId, "iResolution")
         iTimeHandle = glGetUniformLocation(programId, "iTime")
         iRandHandle = glGetUniformLocation(programId, "iRand")
         //Use shader program
@@ -167,7 +168,6 @@ class MyGLRenderer(
         Matrix.rotateM(mvpMatrix, 0, rotationAngle, 0.0f, 0.0f, 1.0f)
         GLES20.glUniformMatrix4fv(uMVPMatrixHandle, 1, false, mvpMatrix, 0)
 
-        GLES20.glUniform2iv(iResolutionHandle, 1, intArrayOf(width, height), 0)
         GLES20.glUniform1f(iTimeHandle, timeProgress++)
         GLES20.glUniform1f(iRandHandle, Random.nextFloat())
 
@@ -192,7 +192,8 @@ class MyGLRenderer(
             GLES20.GL_FLOAT,
             false,
             0,
-            floatBufferFromArray(if (isFront) TEXTURE_COORDS_MIRRORED else TEXTURE_COORDS_ORIG)
+//            floatBufferFromArray(if (isFront) TEXTURE_COORDS_MIRRORED else TEXTURE_COORDS_ORIG)
+            floatBufferFromArray(TEXTURE_COORDS_ORIG)
         )
         GLES20.glEnableVertexAttribArray(textureCoordHandle)
         // Activate texture unit 0 and bind the current texture to the external OES texture target
