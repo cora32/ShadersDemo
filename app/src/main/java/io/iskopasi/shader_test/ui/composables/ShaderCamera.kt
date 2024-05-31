@@ -3,7 +3,6 @@ package io.iskopasi.shader_test.ui.composables
 import android.content.Context
 import android.opengl.GLSurfaceView
 import android.os.Build
-import android.view.Surface
 import androidx.annotation.RequiresApi
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
@@ -20,9 +19,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import io.iskopasi.shader_test.DrawerController
-import io.iskopasi.shader_test.utils.bindCamera
-import io.iskopasi.shader_test.utils.camera_utils.CameraController2
-import io.iskopasi.shader_test.utils.getSurface
+import io.iskopasi.shader_test.utils.Camera2Controller
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
@@ -33,19 +30,12 @@ fun CameraView(controller: DrawerController) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val isFront = true
-    var cameraController: CameraController2? = null
-//    var cameraController: Camera2Controller? = null
-    var renderer: MyGLRenderer? = null
+//    var cameraController: CameraController2? = null
+    var cameraController: Camera2Controller? = null
+//    var renderer: MyGLRenderer? = null
     val view = remember {
-        GLSurfaceView(context).let { glView ->
-            renderer = glView.getSurface(isFront)
-            val surface = Surface(renderer!!.mSurfaceTexture)
-            surface.bindCamera(
-                context,
-                lifecycleOwner,
-                isFront
-            )
-            glView
+        GLSurfaceView(context).apply {
+            cameraController = Camera2Controller(this, isFront, lifecycleOwner)
         }
     }
 
@@ -61,7 +51,7 @@ fun CameraView(controller: DrawerController) {
         modifier = Modifier
             .fillMaxSize()
             .clickable {
-//                cameraController!!.startVideoRec(context)
+                cameraController!!.startVideoRec(context)
 //                cameraController!!.snapshot(context)
 //                renderer!!.takeScreenshot()
             }

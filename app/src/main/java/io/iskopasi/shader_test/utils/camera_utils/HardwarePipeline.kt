@@ -20,7 +20,6 @@ import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CaptureRequest
 import android.opengl.EGL14
-import android.opengl.GLES20
 import android.opengl.GLES30
 import android.opengl.Matrix
 import android.os.HandlerThread
@@ -211,12 +210,12 @@ class ShaderProgram(
         HardwarePipeline.checkGlError("setIdentityM")
         Matrix.rotateM(mvpMatrix, 0, rotationAngle, 0.0f, 0.0f, 1.0f)
         HardwarePipeline.checkGlError("rotateM")
-        GLES20.glUniformMatrix4fv(uMVPMatrixHandle, 1, false, mvpMatrix, 0)
+        GLES30.glUniformMatrix4fv(uMVPMatrixHandle, 1, false, mvpMatrix, 0)
         HardwarePipeline.checkGlError("uMVPMatrixHandle")
 
-        GLES20.glUniform1f(iTimeHandle, timeProgress++)
+        GLES30.glUniform1f(iTimeHandle, timeProgress++)
         HardwarePipeline.checkGlError("iTimeHandle")
-        GLES20.glUniform1f(iRandHandle, Random.nextFloat())
+        GLES30.glUniform1f(iRandHandle, Random.nextFloat())
         HardwarePipeline.checkGlError("iRandHandle")
     }
 

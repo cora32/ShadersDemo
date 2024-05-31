@@ -314,7 +314,7 @@ class CameraController2 {
                         previewSize.height,
                         fps,
                         false,
-                        0,
+                        2,
                         dynamicRange,
                         characteristics,
                         encoder,

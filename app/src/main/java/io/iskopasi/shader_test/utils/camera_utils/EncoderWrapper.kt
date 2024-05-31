@@ -227,11 +227,11 @@ class EncoderWrapper(
     /**
      * Returns the encoder's input surface.
      */
-    public fun getInputSurface(): Surface {
+    fun getInputSurface(): Surface {
         return mInputSurface
     }
 
-    public fun start() {
+    fun start() {
         if (mUseMediaRecorder) {
             mMediaRecorder!!.apply {
                 prepare()
@@ -252,7 +252,7 @@ class EncoderWrapper(
      * <p>
      * Does not return until the encoder thread has stopped.
      */
-    public fun shutdown(): Boolean {
+    fun shutdown(): Boolean {
         if (VERBOSE) Log.d(TAG, "releasing encoder objects")
 
         if (mUseMediaRecorder) {
@@ -287,7 +287,7 @@ class EncoderWrapper(
     /**
      * Notifies the encoder thread that a new frame is available to the encoder.
      */
-    public fun frameAvailable() {
+    fun frameAvailable() {
         if (!mUseMediaRecorder) {
             val handler = mEncoderThread!!.getHandler()
             handler.sendMessage(
@@ -298,7 +298,7 @@ class EncoderWrapper(
         }
     }
 
-    public fun waitForFirstFrame() {
+    fun waitForFirstFrame() {
         if (!mUseMediaRecorder) {
             mEncoderThread!!.waitForFirstFrame()
         }

@@ -3,16 +3,21 @@ package io.iskopasi.shader_test.ui.composables
 import android.graphics.Bitmap
 import android.graphics.SurfaceTexture
 import android.graphics.SurfaceTexture.OnFrameAvailableListener
+import android.opengl.EGL14
+import android.opengl.EGLSurface
 import android.opengl.GLES11Ext
 import android.opengl.GLES20
 import android.opengl.GLES20.glGetUniformLocation
 import android.opengl.GLException
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix
+import android.util.Log
 import android.util.Size
+import android.view.Surface
+import io.iskopasi.shader_test.utils.camera_utils.EncoderWrapper
+import io.iskopasi.shader_test.utils.camera_utils.HardwarePipeline
 import io.iskopasi.shader_test.utils.e
 import io.iskopasi.shader_test.utils.loadShader
-import io.iskopasi.shader_test.utils.saveToFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
@@ -24,13 +29,13 @@ import kotlin.random.Random
 
 class MyGLRenderer(
     private var mGLSurfaceView: GLSurfaceView,
-    size: Size,
-    private val width: Int,
-    private val height: Int,
-    private val isFront: Boolean
+    val size: Size,
+    private val isFront: Boolean,
+    encoder: EncoderWrapper
 ) : GLSurfaceView.Renderer,
     OnFrameAvailableListener {
     var mSurfaceTexture: SurfaceTexture? = null
+    private lateinit var cameraSurface: Surface
     private var timeProgress = 0f
 
     //Texture ID of camera image
@@ -93,8 +98,129 @@ class MyGLRenderer(
         mSurfaceTexture = SurfaceTexture(textureId)
         "---> MyGLRenderer setting size: ${size.width}, ${size.height}".e
         mSurfaceTexture?.setDefaultBufferSize(size.width, size.height)
-//        mSurfaceTexture?.setDefaultBufferSize(2400, 1080)
         mSurfaceTexture?.setOnFrameAvailableListener(this)
+        cameraSurface = Surface(mSurfaceTexture)
+
+//        initEGL()
+    }
+
+
+    /** Initialize the EGL display, context, and render surface */
+    private fun initEGL() {
+        "--> eglDisplay starting ${Thread.currentThread().name}".e
+        eglDisplay = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
+        if (eglDisplay == EGL14.EGL_NO_DISPLAY) {
+            throw RuntimeException("unable to get EGL14 display")
+        }
+        HardwarePipeline.checkEglError("eglGetDisplay")
+
+        val version = intArrayOf(0, 0)
+        if (!EGL14.eglInitialize(eglDisplay, version, 0, version, 1)) {
+            eglDisplay = null
+            throw RuntimeException("Unable to initialize EGL14")
+        }
+        HardwarePipeline.checkEglError("eglInitialize")
+
+        "--> eglDisplay completed! eglDisplay: $eglDisplay".e
+
+        val eglVersion = version[0] * 10 + version[1]
+        Log.e(HardwarePipeline.TAG, "eglVersion: " + eglVersion)
+
+        /** Check that the necessary extensions for color spaces are supported if HDR is enabled */
+//        if (isHDR()) {
+//            val requiredExtensionsList = mutableListOf<String>("EGL_KHR_gl_colorspace")
+//            if (transfer == TransferFragment.PQ_ID) {
+//                requiredExtensionsList.add("EGL_EXT_gl_colorspace_bt2020_pq")
+//            } else if (transfer == TransferFragment.LINEAR_ID) {
+//                requiredExtensionsList.add("EGL_EXT_gl_colorspace_bt2020_linear")
+//            } else if (transfer == TransferFragment.HLG_ID) {
+//                requiredExtensionsList.add("EGL_EXT_gl_colorspace_bt2020_hlg")
+//            }
+//
+//            val eglExtensions = EGL14.eglQueryString(eglDisplay, EGL14.EGL_EXTENSIONS)
+//
+//            for (requiredExtension in requiredExtensionsList) {
+//                if (!eglExtensions.contains(requiredExtension)) {
+//                    Log.e(HardwarePipeline.TAG, "EGL extension not supported: " + requiredExtension)
+//                    Log.e(HardwarePipeline.TAG, "Supported extensions: ")
+//                    Log.e(HardwarePipeline.TAG, eglExtensions)
+//                    throw RuntimeException("EGL extension not supported: " + requiredExtension)
+//                }
+//            }
+//
+//            // More devices can be supported if the eglCreateSyncKHR is used instead of
+//            // EGL15.eglCreateSync
+//            supportsNativeFences =
+//                eglVersion >= 15 && eglExtensions.contains("EGL_ANDROID_native_fence_sync")
+//        }
+//
+//        Log.i(HardwarePipeline.TAG, "isHDR: " + isHDR())
+//        if (isHDR()) {
+//            Log.i(HardwarePipeline.TAG, "Preview transfer: " + TransferFragment.idToStr(transfer))
+//        }
+
+        var renderableType = EGL14.EGL_OPENGL_ES2_BIT
+//        if (isHDR()) {
+//            renderableType = EGLExt.EGL_OPENGL_ES3_BIT_KHR
+//        }
+
+        var rgbBits = 8
+        var alphaBits = 8
+//        if (isHDR()) {
+//            rgbBits = 10
+//            alphaBits = 2
+//        }
+
+        val configAttribList = intArrayOf(
+            EGL14.EGL_RENDERABLE_TYPE,
+            renderableType,
+            EGL14.EGL_RED_SIZE,
+            rgbBits,
+            EGL14.EGL_GREEN_SIZE,
+            rgbBits,
+            EGL14.EGL_BLUE_SIZE,
+            rgbBits,
+            EGL14.EGL_ALPHA_SIZE,
+            alphaBits,
+            EGL14.EGL_NONE
+        )
+
+        val configs = arrayOfNulls<android.opengl.EGLConfig>(1)
+        val numConfigs = intArrayOf(1)
+        EGL14.eglChooseConfig(
+            eglDisplay, configAttribList, 0, configs, 0, configs.size, numConfigs, 0
+        )
+        eglConfig = configs[0]!!
+
+        var requestedVersion = 2
+//        if (isHDR()) {
+//            requestedVersion = 3
+//        }
+
+        val contextAttribList = intArrayOf(
+            EGL14.EGL_CONTEXT_CLIENT_VERSION, requestedVersion, EGL14.EGL_NONE
+        )
+
+        eglContext = EGL14.eglCreateContext(
+            eglDisplay, eglConfig, EGL14.EGL_NO_CONTEXT, contextAttribList, 0
+        )
+        if (eglContext == EGL14.EGL_NO_CONTEXT) {
+            throw RuntimeException("Failed to create EGL context")
+        }
+
+        val clientVersion = intArrayOf(0)
+        EGL14.eglQueryContext(
+            eglDisplay, eglContext, EGL14.EGL_CONTEXT_CLIENT_VERSION, clientVersion, 0
+        )
+//        Log.e(HardwarePipeline.TAG, "EGLContext created, client version " + clientVersion[0])
+
+        val tmpSurfaceAttribs = intArrayOf(
+            EGL14.EGL_WIDTH, 1, EGL14.EGL_HEIGHT, 1, EGL14.EGL_NONE
+        )
+        val tmpSurface = EGL14.eglCreatePbufferSurface(
+            eglDisplay, eglConfig, tmpSurfaceAttribs, /*offset*/ 0
+        )
+        EGL14.eglMakeCurrent(eglDisplay, tmpSurface, tmpSurface, eglContext)
     }
 
     /**
@@ -159,6 +285,13 @@ class MyGLRenderer(
         return Bitmap.createBitmap(bitmapSource, w, h, Bitmap.Config.ARGB_8888)
     }
 
+    var currentlyRecording = false
+    private var eglDisplay = EGL14.EGL_NO_DISPLAY
+    private var eglEncoderSurface: EGLSurface? = EGL14.EGL_NO_SURFACE
+    private var eglConfig: android.opengl.EGLConfig? = null
+    private var eglContext = EGL14.EGL_NO_CONTEXT
+
+
     /**
      * Draw each frame, perform actual drawing operations here, such as clearing the screen, drawing textures, etc.
      */
@@ -173,6 +306,21 @@ class MyGLRenderer(
 
         //Update texture image
         mSurfaceTexture?.updateTexImage()
+
+        copyToPreview()
+
+        /** Copy to the encoder surface if we're currently recording. */
+        if (eglEncoderSurface != EGL14.EGL_NO_SURFACE && currentlyRecording) {
+            copyToRecorder()
+        }
+
+        if (takeScreenshot) {
+            takeScreenshot = false
+            makeCringeshot()
+        }
+    }
+
+    private fun copyToPreview() {
         // Clear the color buffer
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
         //Set the vertex coordinate attribute and enable it
@@ -201,11 +349,33 @@ class MyGLRenderer(
         GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, textureId)
         //Draw the primitives of the triangle strip
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, VERTEX_COORDS.size / COORDS_PER_VERTEX)
+    }
 
-        if (takeScreenshot) {
-            takeScreenshot = false
-            makeCringeshot()
-        }
+    private fun copyToRecorder() {
+
+//        EGL14.eglMakeCurrent(eglDisplay, eglEncoderSurface, eglRenderSurface, eglContext)
+//
+//        var viewportWidth = size.width
+//        var viewportHeight = size.height
+//
+//        /** Swap width and height if the camera is rotated on its side. */
+//        if (orientation == 90 || orientation == 270) {
+//            viewportWidth = size.height
+//            viewportHeight = size.width
+//        }
+//
+//            "--> copyRenderToEncode?? ".e
+//        onDrawFrame(
+//            renderTexId,
+//            renderTexture,
+//            Rect(0, 0, viewportWidth, viewportHeight),
+//            renderToEncodeShaderProgram!!,
+//            false
+//        )
+//
+//        encoder.frameAvailable()
+//
+//        EGL14.eglSwapBuffers(eglDisplay, eglEncoderSurface)
     }
 
     /**
@@ -281,36 +451,59 @@ class MyGLRenderer(
     }
 
     private fun makeCringeshot() {
-        // TODO: replace cringeshot with ImageReader + GL
-        val screenshotSize = width * height
-        ByteBuffer.allocateDirect(screenshotSize * 4).apply {
-            order(ByteOrder.nativeOrder())
-            GLES20.glReadPixels(
-                0,
-                0,
-                width,
-                height,
-                GLES20.GL_RGBA,
-                GLES20.GL_UNSIGNED_BYTE,
-                this
+//        // TODO: replace cringeshot with ImageReader + GL
+//        val screenshotSize = width * height
+//        ByteBuffer.allocateDirect(screenshotSize * 4).apply {
+//            order(ByteOrder.nativeOrder())
+//            GLES20.glReadPixels(
+//                0,
+//                0,
+//                width,
+//                height,
+//                GLES20.GL_RGBA,
+//                GLES20.GL_UNSIGNED_BYTE,
+//                this
+//            )
+//
+//            val pixelsBuffer = IntArray(screenshotSize).let { pixelsBuffer ->
+//                asIntBuffer()[pixelsBuffer]
+//
+//                for (i in 0 until screenshotSize) {
+//                    // The alpha and green channels' positions are preserved while the red and blue are swapped
+//                    pixelsBuffer[i] =
+//                        ((pixelsBuffer[i] and -0xff0100)) or ((pixelsBuffer[i] and 0x000000ff) shl 16) or ((pixelsBuffer[i] and 0x00ff0000) shr 16)
+//                }
+//
+//                pixelsBuffer
+//            }
+//
+//            Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).apply {
+//                setPixels(pixelsBuffer, screenshotSize - width, -width, 0, 0, width, height)
+//                saveToFile(mGLSurfaceView.context)
+//            }
+//        }
+    }
+
+    fun actionDown(inputSurface: Surface) {
+        initEGL()
+
+        "--> Renderer actionDown! $inputSurface ${Thread.currentThread().name}".e
+        val surfaceAttribs = intArrayOf(EGL14.EGL_NONE)
+        eglEncoderSurface = EGL14.eglCreateWindowSurface(
+            eglDisplay, eglConfig, inputSurface, surfaceAttribs, 0
+        )
+        if (eglEncoderSurface == EGL14.EGL_NO_SURFACE) {
+            val error = EGL14.eglGetError()
+            throw RuntimeException(
+                "Failed to create EGL encoder surface" + ": eglGetError = 0x" + Integer.toHexString(
+                    error
+                )
             )
-
-            val pixelsBuffer = IntArray(screenshotSize).let { pixelsBuffer ->
-                asIntBuffer()[pixelsBuffer]
-
-                for (i in 0 until screenshotSize) {
-                    // The alpha and green channels' positions are preserved while the red and blue are swapped
-                    pixelsBuffer[i] =
-                        ((pixelsBuffer[i] and -0xff0100)) or ((pixelsBuffer[i] and 0x000000ff) shl 16) or ((pixelsBuffer[i] and 0x00ff0000) shr 16)
-                }
-
-                pixelsBuffer
-            }
-
-            Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).apply {
-                setPixels(pixelsBuffer, screenshotSize - width, -width, 0, 0, width, height)
-                saveToFile(mGLSurfaceView.context)
-            }
         }
     }
+
+    fun startRecording() {
+    }
+
+    fun getRecordTarget(): Surface = cameraSurface
 }
