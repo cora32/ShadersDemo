@@ -1,7 +1,9 @@
 package io.iskopasi.shader_test.ui.composables
 
 import android.content.Context
+import android.opengl.GLSurfaceView
 import android.os.Build
+import android.view.Surface
 import androidx.annotation.RequiresApi
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
@@ -18,8 +20,9 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import io.iskopasi.shader_test.DrawerController
-import io.iskopasi.shader_test.utils.camera_utils.AutoFitSurfaceView
+import io.iskopasi.shader_test.utils.bindCamera
 import io.iskopasi.shader_test.utils.camera_utils.CameraController2
+import io.iskopasi.shader_test.utils.getSurface
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
@@ -29,37 +32,34 @@ import kotlin.coroutines.suspendCoroutine
 fun CameraView(controller: DrawerController) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val isFront = false
+    val isFront = true
     var cameraController: CameraController2? = null
 //    var cameraController: Camera2Controller? = null
-//    var renderer: MyGLRenderer? = null
-//    val view = remember {
-//        GLSurfaceView(context).let { glView ->
-//            renderer = glView.getSurface(isFront)
-//            val surface = Surface(renderer!!.mSurfaceTexture)
-//            cameraController = Cam2().apply {
-//                start(context, surface, glView)
-//            }
-////            cameraController = surface.bindCamera(
-////                context,
-////                lifecycleOwner,
-////                isFront
-////            )
-//            glView
-//        }
-//    }
-
+    var renderer: MyGLRenderer? = null
     val view = remember {
-        AutoFitSurfaceView(context).let { surface ->
-            cameraController = CameraController2().apply { start(surface) }
-            surface
+        GLSurfaceView(context).let { glView ->
+            renderer = glView.getSurface(isFront)
+            val surface = Surface(renderer!!.mSurfaceTexture)
+            surface.bindCamera(
+                context,
+                lifecycleOwner,
+                isFront
+            )
+            glView
         }
     }
+
+//    val view = remember {
+//        AutoFitSurfaceView(context).let { surface ->
+//            cameraController = CameraController2().apply { start(surface) }
+//            surface
+//        }
+//    }
 
     AndroidView(
         factory = { view },
         modifier = Modifier
-//            .width(100.dp)
+            .fillMaxSize()
             .clickable {
 //                cameraController!!.startVideoRec(context)
 //                cameraController!!.snapshot(context)

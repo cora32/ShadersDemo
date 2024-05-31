@@ -9,10 +9,12 @@ val TRANSFORM_VSHADER = """
 attribute vec4 vPosition;
 uniform mat4 texMatrix;
 varying vec2 v_textureCoord;
+         attribute vec2 a_textureCoord;
 void main() {
     gl_Position = vPosition;
     vec4 texCoord = vec4((vPosition.xy + vec2(1.0, 1.0)) / 2.0, 0.0, 1.0);
     v_textureCoord = (texMatrix * texCoord).xy;
+//    v_textureCoord = a_textureCoord;
 }
 """
 

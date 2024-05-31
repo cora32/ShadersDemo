@@ -101,7 +101,7 @@ class MyGLRenderer(
      * Initialize OpenGL and load the vertex shader and fragment shader. By compiling and linking the shader, creating the shader program and getting a handle to the vertex attribute.
      */
     override fun onSurfaceCreated(p0: GL10?, p1: EGLConfig?) {
-        val fragmentShaderCode = mGLSurfaceView.context.loadShader("glitch_shader.glsl")
+        val fragmentShaderCode = mGLSurfaceView.context.loadShader("glitch_shader2.glsl")
 
         // Initialize the OpenGL environment here, such as creating textures, shader programs, etc.
         //Set the color value when clearing the color buffer to black

@@ -30,6 +30,7 @@ import android.view.Surface
 import android.view.SurfaceView
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.FloatBuffer
 import kotlin.random.Random
 
 
@@ -162,6 +163,7 @@ class HardwarePipeline(
 class ShaderProgram(
     val id: Int,
     private val vPositionLoc: Int,
+    private val textureCoordHandle: Int,
     private val texMatrixLoc: Int,
     private var uMVPMatrixHandle: Int,
     private val iTimeHandle: Int,
@@ -174,18 +176,35 @@ class ShaderProgram(
     private val rotationAngle = 90f
     private var takeScreenshot = false
 
-    fun onDrawFrame(vertexCoords: FloatArray) {
-        val nativeBuffer = ByteBuffer.allocateDirect(vertexCoords.size * 4)
-        nativeBuffer.order(ByteOrder.nativeOrder())
-        val vertexBuffer = nativeBuffer.asFloatBuffer()
-        vertexBuffer.put(vertexCoords)
-        nativeBuffer.position(0)
-        vertexBuffer.position(0)
+    private fun floatBufferFromArray(array: FloatArray): FloatBuffer {
+        val byteBuffer: ByteBuffer = ByteBuffer.allocateDirect(array.size * 4)
+        byteBuffer.order(ByteOrder.nativeOrder())
+        val floatBuffer: FloatBuffer = byteBuffer.asFloatBuffer()
+        floatBuffer.put(array)
+        byteBuffer.position(0)
+        floatBuffer.position(0)
+        return floatBuffer
+    }
 
+    fun onDrawFrame(vertexCoords: FloatArray) {
         GLES30.glEnableVertexAttribArray(vPositionLoc)
         HardwarePipeline.checkGlError("glEnableVertexAttribArray")
-        GLES30.glVertexAttribPointer(vPositionLoc, 2, GLES30.GL_FLOAT, false, 8, vertexBuffer)
+        GLES30.glVertexAttribPointer(
+            vPositionLoc,
+            2,
+            GLES30.GL_FLOAT,
+            false,
+            8,
+            floatBufferFromArray(vertexCoords)
+        )
         HardwarePipeline.checkGlError("glVertexAttribPointer")
+
+//        GLES30.glEnableVertexAttribArray(textureCoordHandle)
+//        HardwarePipeline.checkGlError("glEnableVertexAttribArray")
+//        GLES30.glVertexAttribPointer(textureCoordHandle, 2, GLES30.GL_FLOAT, false, 8, floatBufferFromArray(
+//            TEXTURE_COORDS_ORIG
+//        ))
+//        HardwarePipeline.checkGlError("glVertexAttribPointer")
 
         // Rotate front camera
         Matrix.setIdentityM(mvpMatrix, 0)

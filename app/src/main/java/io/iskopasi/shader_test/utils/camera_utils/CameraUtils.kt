@@ -1,7 +1,9 @@
-package io.iskopasi.shader_test.utils.camera_utils
+package io.iskopasi.shader_test.utils
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.ImageFormat
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCaptureSession
@@ -16,10 +18,7 @@ import android.hardware.camera2.CaptureResult
 import android.hardware.camera2.TotalCaptureResult
 import android.hardware.camera2.params.OutputConfiguration
 import android.hardware.camera2.params.SessionConfiguration
-import android.media.CamcorderProfile
 import android.media.ImageReader
-import android.media.MediaCodec
-import android.media.MediaRecorder
 import android.opengl.GLSurfaceView
 import android.os.Build
 import android.os.Handler
@@ -29,20 +28,12 @@ import android.util.SparseIntArray
 import android.view.Surface
 import android.view.WindowManager
 import androidx.annotation.RequiresApi
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.os.ExecutorCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import io.iskopasi.shader_test.ui.composables.MyGLRenderer
-import io.iskopasi.shader_test.utils.bg
-import io.iskopasi.shader_test.utils.checkPermissions
-import io.iskopasi.shader_test.utils.e
-import io.iskopasi.shader_test.utils.saveToFile
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-
 
 class Camera2Controller(
     private val context: Context,
@@ -55,7 +46,6 @@ class Camera2Controller(
     private var _session: CameraCaptureSession? = null
     private var _cameraDevice: CameraDevice? = null
     private var _imageReader: ImageReader? = null
-    private var _mediaRecorder: MediaRecorder? = null
     private lateinit var cameraCharacteristic: CameraCharacteristics
 
     private val captureCallback = object : CaptureCallback() {
@@ -196,46 +186,37 @@ class Camera2Controller(
             }
         }
 
-    private fun _createCaptureSession(surfaces: List<Surface>) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            "--> Creating getCameraCallback".e
-            _cameraDevice!!.createCaptureSession(
-                SessionConfiguration(
-                    SessionConfiguration.SESSION_REGULAR,
-                    surfaces.map { OutputConfiguration(it) },
-//                            listOf(
-//                                OutputConfiguration(surface).apply {
-//                                    // Works for SurfaceView but not for GLSurfaceView
-////                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-////                                    mirrorMode = OutputConfiguration.MIRROR_MODE_V
-////                                }
-//                                },
-////                                OutputConfiguration(sur!!),
-//                                OutputConfiguration(_mediaRecorder!!.surface),
-////                                OutputConfiguration(_imageReader!!.surface)
-//                            ),
-                    ExecutorCompat.create(_handler!!),
-                    getCameraCaptureCallback()
-                )
-            )
-        } else {
-            _cameraDevice!!.createCaptureSession(
-//                        listOf(surface, _imageReader!!.surface),
-//                        listOf(surface, _mediaRecorder!!.surface),
-                surfaces,
-                getCameraCaptureCallback(),
-                _handler
-            )
-        }
-    }
-
-    private fun getCameraCallback(surfaces: List<Surface>) =
+    private fun getCameraCallback() =
         object : CameraDevice.StateCallback() {
             @RequiresApi(Build.VERSION_CODES.R)
             override fun onOpened(cameraDevice: CameraDevice) {
                 _cameraDevice = cameraDevice
 
-                _createCaptureSession(surfaces)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    cameraDevice.createCaptureSession(
+                        SessionConfiguration(
+                            SessionConfiguration.SESSION_REGULAR,
+                            listOf(
+                                OutputConfiguration(surface).apply {
+                                    // Works for SurfaceView but not for GLSurfaceView
+//                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+//                                    mirrorMode = OutputConfiguration.MIRROR_MODE_V
+//                                }
+                                },
+//                                OutputConfiguration(_imageReader!!.surface)
+                            ),
+                            ExecutorCompat.create(_handler!!),
+                            getCameraCaptureCallback()
+                        )
+                    )
+                } else {
+                    cameraDevice.createCaptureSession(
+//                        listOf(surface, _imageReader!!.surface),
+                        listOf(surface),
+                        getCameraCaptureCallback(),
+                        _handler
+                    )
+                }
             }
 
             override fun onDisconnected(camera: CameraDevice) {
@@ -260,7 +241,11 @@ class Camera2Controller(
     fun bind(
         lifecycleOwner: LifecycleOwner
     ): Camera2Controller {
-        if (!checkPermissions(context)) {
+        if (ActivityCompat.checkSelfPermission(
+                context,
+                Manifest.permission.CAMERA
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
             "Permission check failed.".e
             return this
         }
@@ -275,7 +260,6 @@ class Camera2Controller(
 
     @SuppressLint("MissingPermission")
     private fun openCamera() {
-//        createMediaRecorder(context, "0")
         bg {
             ContextCompat.getSystemService(context, CameraManager::class.java)
                 ?.let { cameraManager ->
@@ -288,122 +272,14 @@ class Camera2Controller(
                     cameraCharacteristic = camCharacteristic
 //                    listSupportedSized()
 
-//                    createMediaRecorder(context, cameraId)
-//                    createImageReader()
+                    createImageReader()
                     cameraManager.openCamera(
                         cameraId,
-                        getCameraCallback(listOf(surface)),
+                        getCameraCallback(),
                         _handler
                     )
                 }
         }
-    }
-
-    var sur: Surface? = null
-
-    private fun _createMR(surface: Surface): MediaRecorder {
-        "--> Creating MR in thread: ${Thread.currentThread().name}".e
-
-
-//        _mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-//            MediaRecorder(context)
-//        } else {
-//            MediaRecorder()
-//        }
-
-        return MediaRecorder().apply {
-            setAudioSource(MediaRecorder.AudioSource.MIC)
-            setVideoSource(MediaRecorder.VideoSource.SURFACE)
-            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            setVideoEncoder(MediaRecorder.VideoEncoder.H264)
-            setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-
-            val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.US)
-            val outputFile = File(context.filesDir, "SV_${sdf.format(Date())}.mp4")
-            setOutputFile(outputFile.absolutePath)
-
-            "--> Writing to ${outputFile.absolutePath}".e
-
-            CamcorderProfile.get(CamcorderProfile.QUALITY_1080P).let { profile ->
-                "--> profile.videoFrameRate: ${profile.videoFrameRate}".e
-                "--> profile.videoFrameWidth: ${profile.videoFrameWidth} profile.videoFrameHeight: ${profile.videoFrameHeight}".e
-                "--> profile.videoBitRate: ${profile.videoBitRate} ".e
-                "--> profile.audioBitRate: ${profile.audioBitRate} ".e
-                "--> profile.audioSampleRate: ${profile.audioSampleRate} ".e
-
-                setVideoFrameRate(profile.videoFrameRate)
-                setVideoSize(profile.videoFrameWidth, profile.videoFrameHeight)
-//                setVideoSize(720, 480)
-                setVideoEncodingBitRate(profile.videoBitRate)
-                setAudioEncodingBitRate(profile.audioBitRate)
-                setAudioSamplingRate(profile.audioSampleRate)
-            }
-
-
-//            if (args.useHardware) {
-//                if (orientation == 90 || orientation == 270) {
-//                    width = args.height
-//                    height = args.width
-//                }
-//                orientationHint = 0
-//            }
-
-//            setOnInfoListener { mr, what, extra -> "--> EVENT: mr: $mr what: $what extra: $extra".e }
-
-//            MediaCodec.createPersistentInputSurface()
-//            sur = MediaCodec.createPersistentInputSurface()
-//            "surface: ${this@Camera2Controller.surface} ${this@Camera2Controller.surface.toString()}".e
-//            setInputSurface(this@Camera2Controller.surface)
-            "--> Creating setInputSurface".e
-            setInputSurface(sur!!)
-            setOrientationHint(0)
-//            try {
-//                prepare()
-//                "MediaRecorder is ready".e
-////                release()
-//            } catch (e: Exception) {
-//                "MediaRecorder is not ready: $e".e
-//                e.printStackTrace()
-//            }
-        }
-    }
-
-    private fun createMediaRecorder(context: Context, cameraId: String) {
-        sur = MediaCodec.createPersistentInputSurface()
-        _createMR(sur!!).apply {
-            prepare()
-            release()
-        }
-        _mediaRecorder = _createMR(sur!!).apply {
-            "--> Preparing MediaRecorder...".e
-            prepare()
-            "--> MediaRecorder prepared".e
-        }
-    }
-
-    private var isRecording = false
-    fun startVideoRec(context: Context) {
-        "--> Starting video rec in ${Thread.currentThread().name}"
-
-        if (isRecording) {
-            _mediaRecorder?.stop()
-            _mediaRecorder?.reset()
-        } else {
-            _session!!.close()
-
-            createMediaRecorder(context, "0")
-            _createCaptureSession(listOf(surface, sur!!))
-
-            _mediaRecorder?.setOnInfoListener { mr, what, extra ->
-                "--> INFO: $mr $what $extra".e
-            }
-
-            _mediaRecorder?.start()
-        }
-
-        isRecording = !isRecording
-
-        "--> isRecording: $isRecording".e
     }
 
     private fun createImageReader() {
@@ -496,8 +372,8 @@ fun GLSurfaceView.getSurface(isFront: Boolean = false): MyGLRenderer {
     val renderer = MyGLRenderer(
         this,
         size,
-        1080,
-        2400,
+        bounds.width(),
+        bounds.height(),
         isFront
     )
     setEGLContextClientVersion(2)

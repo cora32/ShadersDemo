@@ -47,19 +47,6 @@ private val FULLSCREEN_QUAD = floatArrayOf(
     1.0f, 1.0f,  // 3 top right
 )
 
-private val TEXTURE_COORDS_MIRRORED = floatArrayOf(
-    0f, 0f,
-    1f, 0f,
-    0f, 1f,
-    1f, 1f
-)
-private val TEXTURE_COORDS_ORIG = floatArrayOf(
-    0f, 1f,
-    1f, 1f,
-    0f, 0f,
-    1f, 0f
-)
-
 private val EGL_GL_COLORSPACE_KHR = 0x309D
 private val EGL_GL_COLORSPACE_BT2020_LINEAR_EXT = 0x333F
 private val EGL_GL_COLORSPACE_BT2020_PQ_EXT = 0x3340
@@ -559,6 +546,8 @@ class RenderHandler(
 
         val vPositionLoc = GLES30.glGetAttribLocation(shaderProgram, "vPosition")
         HardwarePipeline.checkGlError("glGetAttribLocation")
+        val textureCoordHandle = GLES30.glGetAttribLocation(shaderProgram, "a_textureCoord")
+        HardwarePipeline.checkGlError("glGetAttribLocation")
         val texMatrixLoc = GLES30.glGetUniformLocation(shaderProgram, "texMatrix")
         HardwarePipeline.checkGlError("glGetUniformLocation")
         val uMVPMatrixHandle = GLES20.glGetUniformLocation(shaderProgram, "uMVPMatrix")
@@ -569,7 +558,13 @@ class RenderHandler(
         HardwarePipeline.checkGlError("iRandHandle")
 
         return ShaderProgram(
-            shaderProgram, vPositionLoc, texMatrixLoc, uMVPMatrixHandle, iTimeHandle, iRandHandle
+            shaderProgram,
+            vPositionLoc,
+            textureCoordHandle,
+            texMatrixLoc,
+            uMVPMatrixHandle,
+            iTimeHandle,
+            iRandHandle
         )
     }
 

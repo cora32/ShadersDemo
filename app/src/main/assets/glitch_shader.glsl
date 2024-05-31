@@ -3,6 +3,7 @@
 uniform samplerExternalOES u_texture;
 varying vec2 v_textureCoord;
 
+uniform vec2 iResolution;
 uniform float iTime;
 uniform float iRand;
 const mat3 edge = mat3(3, -6, -1, -4, 16, -4, -1, -6, 3);

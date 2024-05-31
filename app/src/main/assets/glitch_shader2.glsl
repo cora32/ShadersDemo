@@ -29,14 +29,14 @@ highp float rand2(vec2 co)
 }
 
 void main() {
-    vec4 value = vec4(0.0, 0.0, 0.0, 1.0);
+    vec4 value = vec4(1.0, 0.0, 0.0, 1.0);
     //    float r0 = rand2(v_textureCoord + iTime * 0.1);
     //    float r1 = gold_noise(v_textureCoord, r0);
-    //    float yRow = floor(v_textureCoord.y * 10000.0);
-    float yRow = v_textureCoord.y;
+    //        float yRow = floor(v_textureCoord.y * 10000.0);
+    //    float yRow = v_textureCoord.y;
 
     //    if (mod(yRow + iTime, 5.0) == 0.0) {
-    if (v_textureCoord.y <= 0.5) {
+    if (v_textureCoord.y < 0.5) {
         //        float r0 = rand2(v_textureCoord + iTime);
         //
         //        int r1Sign = mod(floor(r0 * 100.0), 2.0) == 0.0 ? -1 : 1;
@@ -112,6 +112,6 @@ void main() {
 
         value = texture2D(u_texture, v_textureCoord);
     }
-    value = texture2D(u_texture, v_textureCoord);
+
     gl_FragColor = value;
 }
