@@ -310,6 +310,7 @@ class MyGLRenderer(
         copyToPreview()
 
         /** Copy to the encoder surface if we're currently recording. */
+//        "eglEncoderSurface != EGL14.EGL_NO_SURFACE: ${eglEncoderSurface != EGL14.EGL_NO_SURFACE} $currentlyRecording".e
         if (eglEncoderSurface != EGL14.EGL_NO_SURFACE && currentlyRecording) {
             copyToRecorder()
         }
@@ -352,19 +353,20 @@ class MyGLRenderer(
     }
 
     private fun copyToRecorder() {
+        "--> copiing to recorder! eglDisplay: $eglDisplay $eglEncoderSurface $eglContext".e
 
-//        EGL14.eglMakeCurrent(eglDisplay, eglEncoderSurface, eglRenderSurface, eglContext)
-//
-//        var viewportWidth = size.width
-//        var viewportHeight = size.height
-//
-//        /** Swap width and height if the camera is rotated on its side. */
+        EGL14.eglMakeCurrent(eglDisplay, eglEncoderSurface, eglEncoderSurface, eglContext)
+
+        var viewportWidth = size.width
+        var viewportHeight = size.height
+
+        /** Swap width and height if the camera is rotated on its side. */
 //        if (orientation == 90 || orientation == 270) {
 //            viewportWidth = size.height
 //            viewportHeight = size.width
 //        }
-//
-//            "--> copyRenderToEncode?? ".e
+
+        "--> copyRenderToEncode?? ".e
 //        onDrawFrame(
 //            renderTexId,
 //            renderTexture,
@@ -372,10 +374,10 @@ class MyGLRenderer(
 //            renderToEncodeShaderProgram!!,
 //            false
 //        )
-//
+
 //        encoder.frameAvailable()
-//
-//        EGL14.eglSwapBuffers(eglDisplay, eglEncoderSurface)
+
+        EGL14.eglSwapBuffers(eglDisplay, eglEncoderSurface)
     }
 
     /**
@@ -500,9 +502,16 @@ class MyGLRenderer(
                 )
             )
         }
+        "--> Renderer actionDown success! $inputSurface ${Thread.currentThread().name}".e
     }
 
     fun startRecording() {
+        currentlyRecording = true
+    }
+
+    fun stopRecording() {
+        "--> Something called stopRecording".e
+        currentlyRecording = false
     }
 
     fun getRecordTarget(): Surface = cameraSurface

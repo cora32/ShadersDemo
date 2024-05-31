@@ -264,7 +264,10 @@ class EncoderWrapper(
                 // when stop() is called, it usually happens when stop() is called immediately after
                 // start(). In this case the output file is not properly constructed ans should be
                 // deleted.
-                Log.d(TAG, "RuntimeException: stop() is called immediately after start()");
+                Log.e(
+                    TAG,
+                    "--> RuntimeException: stop() is called immediately after start() $mOutputFile"
+                );
                 //noinspection ResultOfMethodCallIgnored
                 mOutputFile.delete()
                 return false

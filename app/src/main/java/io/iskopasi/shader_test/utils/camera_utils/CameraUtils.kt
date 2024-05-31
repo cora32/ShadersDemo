@@ -2,6 +2,7 @@ package io.iskopasi.shader_test.utils
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.graphics.ImageFormat
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCaptureSession
@@ -17,24 +18,31 @@ import android.hardware.camera2.params.DynamicRangeProfiles
 import android.hardware.camera2.params.OutputConfiguration
 import android.hardware.camera2.params.SessionConfiguration
 import android.media.ImageReader
+import android.media.MediaScannerConnection
 import android.opengl.GLSurfaceView
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.Looper
 import android.util.Range
 import android.util.Size
 import android.util.SparseIntArray
 import android.view.Surface
 import android.view.WindowManager
+import android.webkit.MimeTypeMap
+import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.core.os.ExecutorCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
+import io.iskopasi.shader_test.BuildConfig
 import io.iskopasi.shader_test.ui.composables.MyGLRenderer
 import io.iskopasi.shader_test.utils.CameraUtils.getCameraId
 import io.iskopasi.shader_test.utils.camera_utils.EncoderWrapper
 import io.iskopasi.shader_test.utils.camera_utils.cameraManager
+import kotlinx.coroutines.delay
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -57,9 +65,12 @@ class Camera2Controller(
     private lateinit var renderer: MyGLRenderer
     private lateinit var cameraCharacteristic: CameraCharacteristics
     private lateinit var encoder: EncoderWrapper
+    private lateinit var previewRequest: CaptureRequest
+    private lateinit var recordRequest: CaptureRequest
     private lateinit var _cameraThread: HandlerThread
     private lateinit var _handler: Handler
     private lateinit var session: CameraCaptureSession
+    private lateinit var outputFile: File
     private var device: CameraDevice? = null
     private var _imageReader: ImageReader? = null
 
@@ -156,8 +167,8 @@ class Camera2Controller(
         openCamera()
     }
 
-    private fun startPreview(previewStabilization: Boolean) {
-        val request = session.device.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
+    private fun getRequest(previewStabilization: Boolean): CaptureRequest {
+        return session.device.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
             // Add the preview surface target
             addTarget(renderer.getRecordTarget())
 
@@ -176,9 +187,14 @@ class Camera2Controller(
                 )
             }
         }.build()
+    }
+
+    private fun startPreview(previewStabilization: Boolean) {
+        previewRequest = getRequest(previewStabilization)
+        recordRequest = getRequest(previewStabilization)
 
         "--> startPreview $session".e
-        session.setRepeatingRequest(request, null, null)
+        session.setRepeatingRequest(previewRequest, null, null)
     }
 
     private fun closeCamera() {
@@ -472,7 +488,7 @@ class Camera2Controller(
 //    }
 
     private fun createEncoder(): EncoderWrapper {
-        val outputFile = CameraUtils.createFile(context, ".mp4")
+        outputFile = CameraUtils.createFile(context, "mp4")
         val previewSize = CameraUtils.getMaxSizeBack(context)
         "--> previewSize: $previewSize".e
 
@@ -509,104 +525,159 @@ class Camera2Controller(
     }
 
     var recordingStarted = false
-    fun startVideoRec(context: Context) {
+    var recordingComplete = false
+    fun startVideoRec(context: Context) = bg {
         if (recordingStarted) {
+            delay(1000L)
             // Stop recording
             recordingStarted = false
 
+            session.stopRepeating()
+            session.close()
+
+            "--> Recording stopped. Output file: $outputFile".e
+            if (encoder.shutdown()) {
+                // Broadcasts the media file to the rest of the system
+                MediaScannerConnection.scanFile(
+                    context, arrayOf(outputFile.absolutePath), null, null
+                )
+
+                if (outputFile.exists()) {
+                    // Launch external activity via intent to play video recorded using our provider
+                    ContextCompat.startActivity(context, Intent().apply {
+                        action = Intent.ACTION_VIEW
+                        type = MimeTypeMap.getSingleton()
+                            .getMimeTypeFromExtension(outputFile.extension)
+                        val authority = "${BuildConfig.APPLICATION_ID}.provider"
+                        data = FileProvider.getUriForFile(context, authority, outputFile)
+                        flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                                Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    }, null)
+                } else {
+                    // TODO:
+                    //  1. Move the callback to ACTION_DOWN, activating it on the second press
+                    //  2. Add an animation to the button before the user can press it again
+                    Handler(Looper.getMainLooper()).post {
+                        Toast.makeText(
+                            context, "error_file_not_found",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            } else {
+                Handler(Looper.getMainLooper()).post {
+                    Toast.makeText(
+                        context, "err",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
         } else {
             // Start recording
             recordingStarted = true
 
             renderer.actionDown(encoder.getInputSurface())
+            "--> encoder.start!".e
             encoder.start()
+            "--> startRecording!".e
             renderer.startRecording()
 
 
-//            val recordTargets = renderer.getRecordTarget()
+            val recordTargets = renderer.getRecordTarget()
+            "--> recordTargets: $recordTargets".e
 //
-//            session.close()
-//            session = createCaptureSession(
-//                device!!, listOf(recordTargets), _handler,
-//                recordingCompleteOnClose = true
-//            )
+            "--> Closing session! $session".e
+            session.close()
+            "--> Session closed! $session".e
+            session = createCaptureSession(
+                device!!, listOf(recordTargets), _handler,
+                recordingCompleteOnClose = true
+            )
+            "--> Received new session! $session".e
 
-//            session.setRepeatingRequest(
-//                recordRequest,
-//                object : CameraCaptureSession.CaptureCallback() {
-//                    override fun onCaptureCompleted(
-//                        session: CameraCaptureSession,
-//                        request: CaptureRequest,
-//                        result: TotalCaptureResult
-//                    ) {
-//                        if (isCurrentlyRecording()) {
-//                            encoder.frameAvailable()
-//                        }
-//                    }
-//                }, _handler
-//            )
+            session.setRepeatingRequest(
+                recordRequest,
+                object : CameraCaptureSession.CaptureCallback() {
+                    override fun onCaptureCompleted(
+                        session: CameraCaptureSession,
+                        request: CaptureRequest,
+                        result: TotalCaptureResult
+                    ) {
+                        if (isCurrentlyRecording()) {
+                            encoder.frameAvailable()
+                        }
+                    }
+                }, _handler
+            )
         }
     }
-}
 
-private suspend fun createCaptureSession(
-    device: CameraDevice,
-    targets: List<Surface>,
-    handler: Handler,
-    recordingCompleteOnClose: Boolean
-): CameraCaptureSession = suspendCoroutine { cont ->
-    val stateCallback = object : CameraCaptureSession.StateCallback() {
-        override fun onConfigured(session: CameraCaptureSession) = cont.resume(session)
+    private fun isCurrentlyRecording(): Boolean {
+        return recordingStarted && !recordingComplete
+    }
 
-        override fun onConfigureFailed(session: CameraCaptureSession) {
-            val exc = RuntimeException("Camera ${device.id} session configuration failed")
-            exc.printStackTrace()
-            cont.resumeWithException(exc)
-        }
+    private suspend fun createCaptureSession(
+        device: CameraDevice,
+        targets: List<Surface>,
+        handler: Handler,
+        recordingCompleteOnClose: Boolean
+    ): CameraCaptureSession = suspendCoroutine { cont ->
+        val stateCallback = object : CameraCaptureSession.StateCallback() {
+            override fun onConfigured(session: CameraCaptureSession) = cont.resume(session)
 
-        /** Called after all captures have completed - shut down the encoder */
-        override fun onClosed(session: CameraCaptureSession) {
-//            if (!recordingCompleteOnClose or !isCurrentlyRecording()) {
-//                return
-//            }
+            override fun onConfigureFailed(session: CameraCaptureSession) {
+                val exc = RuntimeException("Camera ${device.id} session configuration failed")
+                exc.printStackTrace()
+                cont.resumeWithException(exc)
+            }
+
+            /** Called after all captures have completed - shut down the encoder */
+            override fun onClosed(session: CameraCaptureSession) {
+//                "--> closing! recordingCompleteOnClose: $recordingCompleteOnClose isCurrentlyRecording: ${isCurrentlyRecording()}".e
+//                if (!recordingCompleteOnClose or !isCurrentlyRecording()) {
+//                    return
+//                }
 //
-//            recordingComplete = true
-//            pipeline.stopRecording()
+//                "--> clause is ${!recordingCompleteOnClose or !isCurrentlyRecording()} but I still proceed?".e
+////
+//                recordingComplete = true
+//                renderer.stopRecording()
 //            cvRecordingComplete.open()
-        }
-    }
-
-    setupSessionWithDynamicRangeProfile(device, targets, handler, stateCallback)
-}
-
-
-private fun setupSessionWithDynamicRangeProfile(
-    device: CameraDevice,
-    targets: List<Surface>,
-    handler: Handler,
-    stateCallback: CameraCaptureSession.StateCallback
-): Boolean {
-    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-        val outputConfigs = targets.map {
-            OutputConfiguration(it).apply {
-                dynamicRangeProfile = dynamicRange
             }
         }
 
-        val sessionConfig = SessionConfiguration(
-            SessionConfiguration.SESSION_REGULAR,
-            outputConfigs, ExecutorCompat.create(handler), stateCallback
-        )
+        setupSessionWithDynamicRangeProfile(device, targets, handler, stateCallback)
+    }
+
+
+    private fun setupSessionWithDynamicRangeProfile(
+        device: CameraDevice,
+        targets: List<Surface>,
+        handler: Handler,
+        stateCallback: CameraCaptureSession.StateCallback
+    ): Boolean {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            val outputConfigs = targets.map {
+                OutputConfiguration(it).apply {
+                    dynamicRangeProfile = dynamicRange
+                }
+            }
+
+            val sessionConfig = SessionConfiguration(
+                SessionConfiguration.SESSION_REGULAR,
+                outputConfigs, ExecutorCompat.create(handler), stateCallback
+            )
 //            if (android.os.Build.VERSION.SDK_INT >=
 //                android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE
 //                && args.colorSpace != ColorSpaceProfiles.UNSPECIFIED) {
 //                sessionConfig.setColorSpace(ColorSpace.Named.values()[args.colorSpace])
 //            }
-        device.createCaptureSession(sessionConfig)
-        return true
-    } else {
-        device.createCaptureSession(targets, stateCallback, handler)
-        return false
+            device.createCaptureSession(sessionConfig)
+            return true
+        } else {
+            device.createCaptureSession(targets, stateCallback, handler)
+            return false
+        }
     }
 }
 
