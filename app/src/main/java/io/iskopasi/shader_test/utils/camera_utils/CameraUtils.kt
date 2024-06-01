@@ -2,7 +2,6 @@ package io.iskopasi.shader_test.utils
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.Intent
 import android.graphics.ImageFormat
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCaptureSession
@@ -29,15 +28,12 @@ import android.util.Size
 import android.util.SparseIntArray
 import android.view.Surface
 import android.view.WindowManager
-import android.webkit.MimeTypeMap
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.core.os.ExecutorCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
-import io.iskopasi.shader_test.BuildConfig
 import io.iskopasi.shader_test.ui.composables.MyGLRenderer
 import io.iskopasi.shader_test.utils.CameraUtils.getCameraId
 import io.iskopasi.shader_test.utils.camera_utils.EncoderWrapper
@@ -163,11 +159,12 @@ class Camera2Controller(
         encoder = createEncoder()
         renderer = createRenderer(isFront)
 
-        lifecycleOwner.lifecycle.addObserver(this)
         openCamera()
+
+//        lifecycleOwner.lifecycle.addObserver(this)
     }
 
-    private fun getRequest(previewStabilization: Boolean): CaptureRequest {
+    private fun getPreviewRequest(previewStabilization: Boolean): CaptureRequest {
         return session.device.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
             // Add the preview surface target
             addTarget(renderer.getRecordTarget())
@@ -189,9 +186,32 @@ class Camera2Controller(
         }.build()
     }
 
+    private fun getRecordingRequest(previewStabilization: Boolean): CaptureRequest {
+        return session.device.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
+            // Add the preview surface target
+            addTarget(renderer.getRecordTarget())
+            addTarget(encoder.getInputSurface())
+
+            set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(fps, fps))
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                set(
+                    CaptureRequest.SENSOR_PIXEL_MODE,
+                    CaptureRequest.SENSOR_PIXEL_MODE_MAXIMUM_RESOLUTION
+                )
+            }
+
+            if (previewStabilization) {
+                set(
+                    CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
+                    CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_PREVIEW_STABILIZATION
+                )
+            }
+        }.build()
+    }
+
     private fun startPreview(previewStabilization: Boolean) {
-        previewRequest = getRequest(previewStabilization)
-        recordRequest = getRequest(previewStabilization)
+        previewRequest = getPreviewRequest(previewStabilization)
+        recordRequest = getRecordingRequest(previewStabilization)
 
         "--> startPreview $session".e
         session.setRepeatingRequest(previewRequest, null, null)
@@ -229,134 +249,34 @@ class Camera2Controller(
         _handler = Handler(_cameraThread!!.looper)
     }
 
-//    fun getCameraCaptureCallback() =
-//        object : CameraCaptureSession.StateCallback() {
-//            override fun onConfigured(session: CameraCaptureSession) {
-//                this@Camera2Controller.session = session
-//
-//                // Build request to the camera device to start streaming data into surface
-//                val request =
-//                    session.device.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
-////                        set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH)
-////                        set(CaptureRequest.HOT_PIXEL_MODE, CaptureRequest.HOT_PIXEL_MODE_HIGH_QUALITY)
-//                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-//                            set(
-//                                CaptureRequest.SENSOR_PIXEL_MODE,
-//                                CaptureRequest.SENSOR_PIXEL_MODE_MAXIMUM_RESOLUTION
-//                            )
-//                        }
-//                        addTarget(surface)
-//                    }.build()
-//
-//                // Request data endlessly
-//                session.setRepeatingRequest(request, null, null)
-//            }
-//
-//            override fun onConfigureFailed(session: CameraCaptureSession) {
-//                "Camera config failed".e
-//            }
-//        }
-
-//    private fun getCameraCallback() =
-//        object : CameraDevice.StateCallback() {
-//            @RequiresApi(Build.VERSION_CODES.R)
-//            override fun onOpened(cameraDevice: CameraDevice) {
-//                device = cameraDevice
-//
-//                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-//                    cameraDevice.createCaptureSession(
-//                        SessionConfiguration(
-//                            SessionConfiguration.SESSION_REGULAR,
-//                            listOf(
-//                                OutputConfiguration(surface).apply {
-//                                    // Works for SurfaceView but not for GLSurfaceView
-////                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-////                                    mirrorMode = OutputConfiguration.MIRROR_MODE_V
-////                                }
-//                                },
-////                                OutputConfiguration(_imageReader!!.surface)
-//                            ),
-//                            ExecutorCompat.create(_handler!!),
-//                            getCameraCaptureCallback()
-//                        )
-//                    )
-//                } else {
-//                    cameraDevice.createCaptureSession(
-////                        listOf(surface, _imageReader!!.surface),
-//                        listOf(surface),
-//                        getCameraCaptureCallback(),
-//                        _handler
-//                    )
-//                }
-//            }
-//
-//            override fun onDisconnected(camera: CameraDevice) {
-//                camera.close()
-//            }
-//
-//            override fun onError(camera: CameraDevice, error: Int) {
-//                val errorMsg = when (error) {
-//                    ERROR_CAMERA_DEVICE -> "Fatal (device)"
-//                    ERROR_CAMERA_DISABLED -> "Device policy"
-//                    ERROR_CAMERA_IN_USE -> "Camera in use"
-//                    ERROR_CAMERA_SERVICE -> "Fatal (service)"
-//                    ERROR_MAX_CAMERAS_IN_USE -> "Maximum cameras in use"
-//                    else -> "Unknown"
-//                }
-//
-//                "Error: $camera $error $errorMsg".e
-//            }
-//        }
-
-
-//    fun bind(
-//        lifecycleOwner: LifecycleOwner
-//    ): Camera2Controller {
-//        if (ActivityCompat.checkSelfPermission(
-//                context,
-//                Manifest.permission.CAMERA
-//            ) != PackageManager.PERMISSION_GRANTED
-//        ) {
-//            "Permission check failed.".e
-//            return this
-//        }
-//
-//        lifecycleOwner.lifecycle.addObserver(this)
-//        openCamera()
-//
-////        val rotation = ContextCompat.getDisplayOrDefault(context).rotation
-//
-//        return this
-//    }
 
     @SuppressLint("MissingPermission")
-    private fun openCamera() {
-        bg {
-            val cameraId = getCameraId(
-                context,
-                if (isFront) CameraMetadata.LENS_FACING_FRONT else CameraMetadata.LENS_FACING_BACK
-            )
+    private fun openCamera() = bg {
+        val cameraId = getCameraId(
+            context,
+            if (isFront) CameraMetadata.LENS_FACING_FRONT else CameraMetadata.LENS_FACING_BACK
+        )
 
-            device = getCameraDevice(cameraId)
+        device = getCameraDevice(cameraId)
 
-            session = createCaptureSession(
-                device!!,
-                listOf(renderer.getRecordTarget()),
-                _handler,
-                recordingCompleteOnClose = true
-            )
+        session = createCaptureSession(
+            device!!,
+            listOf(renderer.getRecordTarget()),
+            _handler,
+            recordingCompleteOnClose = true
+        )
 
-            "--> got session $session".e
-            startPreview(previewStabilization = false)
+        "--> got session $session".e
+        startPreview(previewStabilization = false)
 
-            // Sends the capture request as frequently as possible until the session is torn down or
-            //  session.stopRepeating() is called
+        // Sends the capture request as frequently as possible until the session is torn down or
+        //  session.stopRepeating() is called
 //            if (previewRequest == null) {
 //                session.setRepeatingRequest(recordRequest, null, _handler)
 //            } else {
 //                session.setRepeatingRequest(previewRequest!!, null, _handler)
 //            }
-        }
+
 //            context.cameraManager
 //                ?.let { cameraManager ->
 //                    // Select front-facing camera
@@ -379,36 +299,6 @@ class Camera2Controller(
             object : CameraDevice.StateCallback() {
                 @RequiresApi(Build.VERSION_CODES.R)
                 override fun onOpened(cameraDevice: CameraDevice) = cont.resume(cameraDevice)
-//                {
-
-//                    device = cameraDevice
-//
-//                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-//                        cameraDevice.createCaptureSession(
-//                            SessionConfiguration(
-//                                SessionConfiguration.SESSION_REGULAR,
-//                                listOf(
-//                                    OutputConfiguration(surface).apply {
-//                                        // Works for SurfaceView but not for GLSurfaceView
-////                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-////                                    mirrorMode = OutputConfiguration.MIRROR_MODE_V
-////                                }
-//                                    },
-////                                OutputConfiguration(_imageReader!!.surface)
-//                                ),
-//                                ExecutorCompat.create(_handler!!),
-//                                getCameraCaptureCallback()
-//                            )
-//                        )
-//                    } else {
-//                        cameraDevice.createCaptureSession(
-////                        listOf(surface, _imageReader!!.surface),
-//                            listOf(surface),
-//                            getCameraCaptureCallback(),
-//                            _handler
-//                        )
-//                    }
-//                }
 
                 override fun onDisconnected(camera: CameraDevice) {
                 }
@@ -543,16 +433,7 @@ class Camera2Controller(
                 )
 
                 if (outputFile.exists()) {
-                    // Launch external activity via intent to play video recorded using our provider
-                    ContextCompat.startActivity(context, Intent().apply {
-                        action = Intent.ACTION_VIEW
-                        type = MimeTypeMap.getSingleton()
-                            .getMimeTypeFromExtension(outputFile.extension)
-                        val authority = "${BuildConfig.APPLICATION_ID}.provider"
-                        data = FileProvider.getUriForFile(context, authority, outputFile)
-                        flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                                Intent.FLAG_ACTIVITY_CLEAR_TOP
-                    }, null)
+                    outputFile.play(context)
                 } else {
                     // TODO:
                     //  1. Move the callback to ACTION_DOWN, activating it on the second press
@@ -590,7 +471,10 @@ class Camera2Controller(
             session.close()
             "--> Session closed! $session".e
             session = createCaptureSession(
-                device!!, listOf(recordTargets), _handler,
+                device!!, listOf(
+                    renderer.getRecordTarget(),
+                    encoder.getInputSurface()
+                ), _handler,
                 recordingCompleteOnClose = true
             )
             "--> Received new session! $session".e

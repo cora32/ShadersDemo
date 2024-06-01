@@ -487,21 +487,21 @@ class MyGLRenderer(
     }
 
     fun actionDown(inputSurface: Surface) {
-        initEGL()
+//        initEGL()
 
         "--> Renderer actionDown! $inputSurface ${Thread.currentThread().name}".e
-        val surfaceAttribs = intArrayOf(EGL14.EGL_NONE)
-        eglEncoderSurface = EGL14.eglCreateWindowSurface(
-            eglDisplay, eglConfig, inputSurface, surfaceAttribs, 0
-        )
-        if (eglEncoderSurface == EGL14.EGL_NO_SURFACE) {
-            val error = EGL14.eglGetError()
-            throw RuntimeException(
-                "Failed to create EGL encoder surface" + ": eglGetError = 0x" + Integer.toHexString(
-                    error
-                )
-            )
-        }
+//        val surfaceAttribs = intArrayOf(EGL14.EGL_NONE)
+//        eglEncoderSurface = EGL14.eglCreateWindowSurface(
+//            eglDisplay, eglConfig, inputSurface, surfaceAttribs, 0
+//        )
+//        if (eglEncoderSurface == EGL14.EGL_NO_SURFACE) {
+//            val error = EGL14.eglGetError()
+//            throw RuntimeException(
+//                "Failed to create EGL encoder surface" + ": eglGetError = 0x" + Integer.toHexString(
+//                    error
+//                )
+//            )
+//        }
         "--> Renderer actionDown success! $inputSurface ${Thread.currentThread().name}".e
     }
 

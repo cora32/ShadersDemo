@@ -30,15 +30,14 @@ fun CameraView(controller: DrawerController) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val isFront = true
-//    var cameraController: CameraController2? = null
     var cameraController: Camera2Controller? = null
-//    var renderer: MyGLRenderer? = null
     val view = remember {
         GLSurfaceView(context).apply {
             cameraController = Camera2Controller(this, isFront, lifecycleOwner)
         }
     }
 
+//    var cameraController: CameraController2? = null
 //    val view = remember {
 //        AutoFitSurfaceView(context).let { surface ->
 //            cameraController = CameraController2().apply { start(surface) }

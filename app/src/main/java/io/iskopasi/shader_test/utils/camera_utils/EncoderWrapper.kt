@@ -27,8 +27,10 @@ import android.media.MediaRecorder
 import android.os.Handler
 import android.os.Looper
 import android.os.Message
+import android.text.format.Formatter
 import android.util.Log
 import android.view.Surface
+import io.iskopasi.shader_test.utils.e
 
 
 import java.io.File
@@ -268,6 +270,13 @@ class EncoderWrapper(
                     TAG,
                     "--> RuntimeException: stop() is called immediately after start() $mOutputFile"
                 );
+
+                "--> File size: ${mOutputFile.length()} ${
+                    Formatter.formatShortFileSize(
+                        context,
+                        mOutputFile.length()
+                    )
+                }".e
                 //noinspection ResultOfMethodCallIgnored
                 mOutputFile.delete()
                 return false

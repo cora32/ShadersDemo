@@ -3,6 +3,7 @@ package io.iskopasi.shader_test.utils
 import android.Manifest
 import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -11,6 +12,7 @@ import android.media.Image
 import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
+import android.webkit.MimeTypeMap
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -32,11 +34,14 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import io.iskopasi.shader_test.BuildConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.io.File
 import java.io.IOException
 
 val Picture.toBitmap: Bitmap
@@ -206,4 +211,38 @@ fun Bitmap.saveToFile(context: Context) {
     } catch (e: IOException) {
         throw e
     }
+}
+
+fun File.share(context: Context) {
+    val uri = FileProvider.getUriForFile(
+        context,
+        BuildConfig.APPLICATION_ID + ".provider",
+        this
+    )
+    ContextCompat.startActivity(context.applicationContext, Intent(Intent.ACTION_SEND).apply {
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        setType(
+            MimeTypeMap.getSingleton()
+                .getMimeTypeFromExtension(this@share.extension)
+        )
+        putExtra(Intent.EXTRA_STREAM, uri)
+        setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }, null)
+}
+
+fun File.play(context: Context) {
+    val uri = FileProvider.getUriForFile(
+        context,
+        "${BuildConfig.APPLICATION_ID}.provider",
+        this
+    )
+    // Launch external activity via intent to play video recorded using our provider
+    ContextCompat.startActivity(context, Intent().apply {
+        action = Intent.ACTION_VIEW
+        type = MimeTypeMap.getSingleton()
+            .getMimeTypeFromExtension(this@play.extension)
+        data = uri
+        flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                Intent.FLAG_ACTIVITY_CLEAR_TOP
+    }, null)
 }
