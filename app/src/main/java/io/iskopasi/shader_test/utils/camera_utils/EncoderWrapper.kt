@@ -144,9 +144,9 @@ class EncoderWrapper(
                 setVideoFrameRate(profile.videoFrameRate)
 
                 if (isHardware && isRotated) {
-                    setVideoSize(profile.videoFrameHeight, profile.videoFrameWidth)
+                    setVideoSize(height, width)
                 } else {
-                    setVideoSize(profile.videoFrameWidth, profile.videoFrameHeight)
+                    setVideoSize(width, height)
                 }
 
                 setVideoEncodingBitRate(profile.videoBitRate)
@@ -196,7 +196,11 @@ class EncoderWrapper(
                 else -> -1
             }
 
-            val format = MediaFormat.createVideoFormat(mMimeType, width, height)
+            val format = MediaFormat.createVideoFormat(
+                mMimeType,
+                width,
+                height
+            )
 
             // Set some properties.  Failing to specify some of these can cause the MediaCodec
             // configure() call to throw an unhelpful exception.
@@ -210,10 +214,16 @@ class EncoderWrapper(
 
             if (codecProfile != -1) {
                 format.setInteger(MediaFormat.KEY_PROFILE, codecProfile)
-                format.setInteger(MediaFormat.KEY_COLOR_STANDARD, MediaFormat.COLOR_STANDARD_BT2020)
+                format.setInteger(
+                    MediaFormat.KEY_COLOR_STANDARD,
+                    MediaFormat.COLOR_STANDARD_BT2020
+                )
                 format.setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_FULL)
                 format.setInteger(MediaFormat.KEY_COLOR_TRANSFER, getTransferFunction())
-                format.setFeatureEnabled(MediaCodecInfo.CodecCapabilities.FEATURE_HdrEditing, true)
+                format.setFeatureEnabled(
+                    MediaCodecInfo.CodecCapabilities.FEATURE_HdrEditing,
+                    true
+                )
             }
 
             if (VERBOSE) Log.d(TAG, "format: " + format)

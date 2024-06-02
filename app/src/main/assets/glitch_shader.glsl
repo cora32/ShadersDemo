@@ -6,7 +6,8 @@ varying vec2 v_textureCoord;
 uniform vec2 iResolution;
 uniform float iTime;
 uniform float iRand;
-const mat3 edge = mat3(3, -6, -1, -4, 16, -4, -1, -6, 3);
+//const mat3 edge = mat3(3, -6, -1, -4, 16, -4, -1, -6, 3);
+const mat3 edge = mat3(3, -12, -4, -4, 28, -4, 2, -9, -2);
 const mat3 non = mat3(1, 1, 1, 1, 1, 1, 1, 1, 1);
 const int radius = 3;
 const float PHI = 1.61803398874989484820459;  // Φ = Golden Ratio
@@ -29,13 +30,37 @@ highp float rand2(vec2 co)
     return fract(sin(sn) * c);
 }
 
+bool isRed(vec4 value) {
+    return value.r > 0.9
+    && value.g < 0.8
+    && value.b < 0.8;
+}
+
+bool isGreen(vec4 value) {
+    return value.r < 0.8
+    && value.g > 0.9
+    && value.b < 0.8;
+}
+
+bool isBlue(vec4 value) {
+    return value.r < 0.8
+    && value.g < 0.8
+    && value.b > 0.9;
+}
+
+bool isYellow(vec4 value) {
+    return value.r > 0.9
+    && value.g > 0.9
+    && value.b < 0.8;
+}
+
 void main() {
     vec4 value = vec4(0.0, 0.0, 0.0, 1.0);
     //    float r0 = rand2(v_textureCoord + iTime * 0.1);
     //    float r1 = gold_noise(v_textureCoord, r0);
     float yRow = floor(v_textureCoord.y * 10000.0);
 
-    if (mod(yRow + iTime, 5.0) == 0.0) {
+    if (mod(yRow - iTime, 4.0) == 0.0) {
         float r0 = rand2(v_textureCoord + iTime);
 
         int r1Sign = mod(floor(r0 * 100.0), 2.0) == 0.0 ? -1 : 1;
@@ -52,22 +77,23 @@ void main() {
         int redFlag = 0;
 
         // Calculate offsets for edge detector
-        if (iRand > 0.8) {
-            os0 = -0.0101 - rand(v_textureCoord + iRand) / 10000.0;
-            os1 = 0.01 + rand(v_textureCoord + iRand * 2.0) / 10000.0;
-            os2 = 0.015 + rand(v_textureCoord + iRand * 5.0) / 100.0;
+        if (iRand > 0.98) {
+            //            os0 = -0.0101 - rand(v_textureCoord + iRand) / 10000.0;
+            //            os1 = 0.01 + rand(v_textureCoord + iRand * 2.0) / 10000.0;
+            //            os2 = 0.015 + rand(v_textureCoord + iRand * 5.0) / 100.0;
+            os0 = -0.0101;
+            os1 = 0.001 + (rand(v_textureCoord + iRand * 2.0) / 5000.0) * float(r1Sign);
+            os2 = 0.0015;
 
-            if (iRand > 0.9) {
-                os0 = -0.0101 - rand(v_textureCoord + iRand) / 100.0;
-                os1 = 0.01 + rand(v_textureCoord + iRand * 2.0) / 100.0;
+            if (iRand > 0.99) {
+                os0 = -0.0201 - rand(v_textureCoord + iRand) / 100.0;
+                os1 = 0.04 + rand(v_textureCoord + iRand * 2.0) / 100.0;
             }
 
             redFlag = 1;
         }
 
-        vec3 offset = vec3(os0,
-                           os1,
-                           os2);
+        vec3 offset = vec3(os0, os1, os2);
 
         // Sort of edge detection
         for (int x = 0; x < radius; x++) {
@@ -76,37 +102,51 @@ void main() {
                 value += texture2D(u_texture, coord) * float(edge[x][y]);
             }
         }
-        value /= 4.0;
+        value /= 5.0;
         value.a = 1.0;
 
         // Removing brightness
         if (
-        value.r > 0.8 &&
-        value.g > 0.8 &&
-        value.b > 0.8
+        value.r > 0.7 &&
+        value.g > 0.7 &&
+        value.b > 0.7
         ) {
             value.r = 0.0;
-            value.g = 0.0;
-            value.b = 0.0;
+            value.g = 0.5;
+            value.b = 0.3;
 
             if (redFlag == 1) {
-                value.r = 0.4;
-                value.b = 0.6;
+                value.r = 0.9;
+                value.b = 0.2;
             }
         }
 
+        vec4 nValue = texture2D(u_texture, v_textureCoord);
+        bool isRed = isRed(nValue);
+        bool isGreen = isGreen(nValue);
+        bool isBlue = isBlue(nValue);
+        bool isYellow = isYellow(nValue);
         // Increasing green component
         if (
         value.r > 0.2 &&
         value.g > 0.2 &&
         value.b > 0.2
         ) {
-            value.r -= 0.3;
-            value.g = 1.0 - r0 / 2.0;
-            value.b -= 0.1;
-        } else {
-            value.r -= 0.3;
-            value.b -= 0.1;
+            value.g = 1.0 - r0 / 10.0;
+        }
+
+        if (isRed) {
+            value.r += 0.5;
+        }
+        if (isGreen) {
+            value.g += 0.5;
+        }
+        if (isBlue) {
+            value.b += 0.5;
+        }
+        if (isYellow) {
+            value.r += 0.5;
+            value.g += 0.5;
         }
 
         //        value = texture2D(u_texture, v_textureCoord);

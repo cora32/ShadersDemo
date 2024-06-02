@@ -29,7 +29,7 @@ import kotlin.coroutines.suspendCoroutine
 fun CameraView(controller: DrawerController) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val isFront = true
+    val isFront = false
 //    var cameraController: Camera2Controller? = null
 //    val view = remember {
 //        GLSurfaceView(context).apply {

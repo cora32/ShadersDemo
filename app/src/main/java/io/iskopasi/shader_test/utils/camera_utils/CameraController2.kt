@@ -8,11 +8,12 @@ import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CameraMetadata
 import android.hardware.camera2.CaptureRequest
-import android.hardware.camera2.TotalCaptureResult
 import android.hardware.camera2.params.DynamicRangeProfiles
 import android.hardware.camera2.params.OutputConfiguration
 import android.hardware.camera2.params.SessionConfiguration
+import android.media.CamcorderProfile
 import android.media.MediaScannerConnection
+import android.os.Build
 import android.os.ConditionVariable
 import android.os.Handler
 import android.os.HandlerThread
@@ -28,7 +29,8 @@ import io.iskopasi.shader_test.utils.bg
 import io.iskopasi.shader_test.utils.createFile
 import io.iskopasi.shader_test.utils.e
 import io.iskopasi.shader_test.utils.main
-import io.iskopasi.shader_test.utils.play
+import io.iskopasi.shader_test.utils.saveToDcim
+import io.iskopasi.shader_test.utils.share
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.File
@@ -39,11 +41,24 @@ import kotlin.coroutines.suspendCoroutine
 class CameraController2(val isFront: Boolean, lifecycleOwner: LifecycleOwner) :
     DefaultLifecycleObserver {
     private var device: CameraDevice? = null
-    private val cameraThread = HandlerThread("CameraThread").apply { start() }
-    private val cameraHandler = Handler(cameraThread.looper)
+    private var cameraThread: HandlerThread? = null
+    private var cameraHandler: Handler? = null
+
+    @Volatile
+    private var recordingStarted = false
+
+    @Volatile
+    private var recordingComplete = false
+    private var recordingStartMillis = 0L
 
     private val RECORDER_VIDEO_BITRATE: Int = 10_000_000
     private val MIN_REQUIRED_RECORDING_TIME_MILLIS: Long = 1000L
+    private val fps = 30
+    private val videoCodec = EncoderWrapper.VIDEO_CODEC_ID_H264
+    private val dynamicRange = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+        DynamicRangeProfiles.STANDARD
+    else
+        DynamicRangeProfiles.PUBLIC_MAX
 
     /** [CameraCharacteristics] corresponding to the provided Camera ID */
     private lateinit var characteristics: CameraCharacteristics
@@ -51,30 +66,11 @@ class CameraController2(val isFront: Boolean, lifecycleOwner: LifecycleOwner) :
     private lateinit var session: CameraCaptureSession
     private lateinit var pipeline: Pipeline
     private lateinit var outputFile: File
+    private lateinit var recordRequest: CaptureRequest
 
     /** Orientation of the camera as 0, 90, 180, or 270 degrees */
     private val orientation: Int by lazy {
         characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION)!!
-    }
-
-    private val fps = 30
-    private val videoCodec = EncoderWrapper.VIDEO_CODEC_ID_H264
-    private val dynamicRange = DynamicRangeProfiles.STANDARD
-
-    @Volatile
-    private var recordingStarted = false
-
-    @Volatile
-    private var recordingComplete = false
-
-    /** Requests used for preview only in the [CameraCaptureSession] */
-    private val previewRequest: CaptureRequest? by lazy {
-        pipeline.createPreviewRequest(session, false)
-    }
-
-    /** Requests used for preview and recording in the [CameraCaptureSession] */
-    private val recordRequest: CaptureRequest by lazy {
-        pipeline.createRecordRequest(session, false)
     }
 
     /** Condition variable for blocking until the recording completes */
@@ -82,29 +78,53 @@ class CameraController2(val isFront: Boolean, lifecycleOwner: LifecycleOwner) :
     private val cvRecordingComplete = ConditionVariable(false)
 
     init {
+        startThread()
+
         lifecycleOwner.lifecycle.addObserver(this)
     }
 
+    private fun startThread() {
+        cameraThread = HandlerThread("CameraThread").apply { start() }
+        cameraHandler = Handler(cameraThread!!.looper)
+    }
+
     override fun onResume(owner: LifecycleOwner) {
-//        createCameraThread()
-//        if (device != null) {
-//            openCamera()
-//        }
     }
 
     override fun onPause(owner: LifecycleOwner) {
-//        closeCamera()
-//
-//        _cameraThread?.quitSafely()
-//        try {
-//            _cameraThread?.join()
-//            _handler?.looper?.quitSafely()
-//        } catch (e: InterruptedException) {
-//            e.printStackTrace()
-//        } finally {
-////            _cameraThread = null
-////            _handler = null
-//        }
+        pipeline.cleanup()
+    }
+
+    override fun onStop(owner: LifecycleOwner) {
+        super.onStop(owner)
+
+        try {
+            device?.close()
+            session.stopRepeating()
+        } catch (exc: Throwable) {
+            "$exc".e
+        }
+    }
+
+    override fun onDestroy(owner: LifecycleOwner) {
+        super.onDestroy(owner)
+        pipeline.clearFrameListener()
+        pipeline.cleanup()
+        stopThread()
+        encoderSurface.release()
+    }
+
+    private fun stopThread() {
+        cameraThread?.quitSafely()
+        try {
+            cameraThread?.join()
+            cameraHandler?.looper?.quitSafely()
+        } catch (e: InterruptedException) {
+            e.printStackTrace()
+        } finally {
+            cameraThread = null
+            cameraHandler = null
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -141,26 +161,6 @@ class CameraController2(val isFront: Boolean, lifecycleOwner: LifecycleOwner) :
         }
     }
 
-    private fun createEncoder(
-        width: Int,
-        height: Int,
-        orientation: Int,
-        outputFile: File,
-        context: Context
-    ): EncoderWrapper {
-        return EncoderWrapper(
-            width, height,
-            RECORDER_VIDEO_BITRATE,
-            fps,
-            dynamicRange,
-            orientation,
-            outputFile,
-            useMediaRecorder = true,
-            videoCodec,
-            context.applicationContext
-        )
-    }
-
     private fun getCharacteristics(context: Context, cameraId: String) =
         context.cameraManager!!.getCameraCharacteristics(cameraId)
 
@@ -182,6 +182,7 @@ class CameraController2(val isFront: Boolean, lifecycleOwner: LifecycleOwner) :
     /**
      * Creates a [CameraCaptureSession] with the dynamic range profile set.
      */
+    @SuppressLint("WrongConstant")
     private fun setupSessionWithDynamicRangeProfile(
         device: CameraDevice,
         targets: List<Surface>,
@@ -248,28 +249,23 @@ class CameraController2(val isFront: Boolean, lifecycleOwner: LifecycleOwner) :
     }
 
     private fun initializeCamera(context: Context, cameraId: String) = main {
-        "--> Initializing camera...".e
         device = openCamera(context, cameraId)
 
-        "--> getPreviewTargets...".e
         val previewTargets = pipeline.getPreviewTargets()
-        "--> previewTargets: $previewTargets".e
 
         // Start a capture session using our open camera and list of Surfaces where frames will go
         session = createCaptureSession(
             device!!,
             previewTargets,
-            cameraHandler,
+            cameraHandler!!,
             recordingCompleteOnClose = true
         )
 
+        recordRequest = pipeline.createRecordRequest(session, false)
+
         // Sends the capture request as frequently as possible until the session is torn down or
         //  session.stopRepeating() is called
-        if (previewRequest == null) {
-            session.setRepeatingRequest(recordRequest, null, cameraHandler)
-        } else {
-            session.setRepeatingRequest(previewRequest!!, null, cameraHandler)
-        }
+        session.setRepeatingRequest(recordRequest, null, cameraHandler)
     }
 
     fun start(
@@ -308,16 +304,28 @@ class CameraController2(val isFront: Boolean, lifecycleOwner: LifecycleOwner) :
                     view.setAspectRatio(previewSize.width, previewSize.height)
 
                     outputFile = context.createFile("mp4")
-                    encoder = createEncoder(
-                        previewSize.width,
-                        previewSize.height,
+                    var width = 0
+                    var height = 0
+                    CamcorderProfile.get(CamcorderProfile.QUALITY_1080P).let { profile ->
+                        width = profile.videoFrameWidth
+                        height = profile.videoFrameHeight
+                    }
+
+                    encoder = EncoderWrapper(
+                        width,
+                        height,
+                        RECORDER_VIDEO_BITRATE,
+                        fps,
+                        dynamicRange,
                         orientation,
                         outputFile,
-                        context
+                        useMediaRecorder = true,
+                        videoCodec,
+                        context.applicationContext
                     )
                     pipeline = HardwarePipeline(
-                        previewSize.width,
-                        previewSize.height,
+                        width,
+                        height,
                         fps,
                         false,
                         2,
@@ -344,6 +352,7 @@ class CameraController2(val isFront: Boolean, lifecycleOwner: LifecycleOwner) :
 
     fun startVideoRec(context: Context) = bg {
         if (!recordingStarted) {
+            recordingStartMillis = System.currentTimeMillis()
             // Prevents screen rotation during the video recording
 //            requireActivity().requestedOrientation =
 //                ActivityInfo.SCREEN_ORIENTATION_LOCKED
@@ -355,35 +364,6 @@ class CameraController2(val isFront: Boolean, lifecycleOwner: LifecycleOwner) :
             encoder.start()
             cvRecordingStarted.open()
             pipeline.startRecording()
-
-
-            // Start recording repeating requests, which will stop the ongoing preview
-            //  repeating requests without having to explicitly call
-            //  `session.stopRepeating`
-            if (previewRequest != null) {
-                val recordTargets = pipeline.getRecordTargets()
-
-                session.close()
-                session = createCaptureSession(
-                    device!!, recordTargets, cameraHandler,
-                    recordingCompleteOnClose = true
-                )
-
-                session.setRepeatingRequest(
-                    recordRequest,
-                    object : CameraCaptureSession.CaptureCallback() {
-                        override fun onCaptureCompleted(
-                            session: CameraCaptureSession,
-                            request: CaptureRequest,
-                            result: TotalCaptureResult
-                        ) {
-                            if (isCurrentlyRecording()) {
-                                encoder.frameAvailable()
-                            }
-                        }
-                    }, cameraHandler
-                )
-            }
         } else {
             cvRecordingStarted.block()
 
@@ -394,18 +374,6 @@ class CameraController2(val isFront: Boolean, lifecycleOwner: LifecycleOwner) :
             session.close()
 
             pipeline.clearFrameListener()
-//            fragmentBinding.captureButton.setOnTouchListener(null)
-
-            // Set color to GRAY and hide timer when recording stops
-//            fragmentBinding.captureButton.post {
-//                fragmentBinding.captureButton.background =
-//                    context?.let {
-//                        ContextCompat.getDrawable(it,
-//                            R.drawable.ic_shutter_normal)
-//                    }
-//                fragmentBinding.captureTimer?.visibility = View.GONE
-//                fragmentBinding.captureTimer?.stop()
-//            }
 
             /* Wait until the session signals onReady */
             cvRecordingComplete.block()
@@ -415,17 +383,14 @@ class CameraController2(val isFront: Boolean, lifecycleOwner: LifecycleOwner) :
 //                ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
 
             // Requires recording of at least MIN_REQUIRED_RECORDING_TIME_MILLIS
-//            val elapsedTimeMillis = System.currentTimeMillis() - recordingStartMillis
-//            if (elapsedTimeMillis < MIN_REQUIRED_RECORDING_TIME_MILLIS) {
-//                delay(MIN_REQUIRED_RECORDING_TIME_MILLIS - elapsedTimeMillis)
-//            }
-
-            delay(1000L)
+            val elapsedTimeMillis = System.currentTimeMillis() - recordingStartMillis
+            if (elapsedTimeMillis < MIN_REQUIRED_RECORDING_TIME_MILLIS) {
+                delay(MIN_REQUIRED_RECORDING_TIME_MILLIS - elapsedTimeMillis)
+            }
 
             pipeline.cleanup()
 
             "--> Recording stopped. Output file: $outputFile".e
-
             if (encoder.shutdown()) {
                 // Broadcasts the media file to the rest of the system
                 MediaScannerConnection.scanFile(
@@ -433,9 +398,9 @@ class CameraController2(val isFront: Boolean, lifecycleOwner: LifecycleOwner) :
                 )
 
                 if (outputFile.exists()) {
-//                    outputFile.share(context)
-//                    outputFile.saveToDcim(context)?.play(context)
-                    outputFile.play(context)
+                    outputFile.share(context)
+                    outputFile.saveToDcim(context)
+//                    outputFile.play(context)
                 } else {
                     // TODO:
                     //  1. Move the callback to ACTION_DOWN, activating it on the second press
@@ -455,9 +420,6 @@ class CameraController2(val isFront: Boolean, lifecycleOwner: LifecycleOwner) :
                     ).show()
                 }
             }
-//            Handler(Looper.getMainLooper()).post {
-//                navController.popBackStack()
-//            }
         }
     }
 }

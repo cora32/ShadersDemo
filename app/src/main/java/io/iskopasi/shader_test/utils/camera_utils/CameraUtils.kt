@@ -618,7 +618,8 @@ object CameraUtils {
         val useMediaRecorder = true
 
         return EncoderWrapper(
-            width, height,
+            1920,
+            1080,
             RECORDER_VIDEO_BITRATE,
             fps,
             dynamicRange,

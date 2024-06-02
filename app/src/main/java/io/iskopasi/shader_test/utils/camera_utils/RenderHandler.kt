@@ -82,7 +82,7 @@ class RenderHandler(
     private val dynamicRange: Long,
     characteristics: CameraCharacteristics,
     private val encoder: EncoderWrapper,
-    private val viewFinder: SurfaceView
+    private val viewFinder: SurfaceView // Leak?
 ) : Handler(looper), SurfaceTexture.OnFrameAvailableListener {
     companion object {
         val MSG_CREATE_RESOURCES = 0
@@ -424,7 +424,6 @@ class RenderHandler(
             }
         }
 
-        "setDefaultBufferSize: 1920 1080"
         "--> setDefaultBufferSize: $width $height".e
         cameraTexId = createTexture()
         cameraTexture = SurfaceTexture(cameraTexId)
@@ -514,7 +513,13 @@ class RenderHandler(
             val customFragmentShader = createShader(
                 GLES30.GL_FRAGMENT_SHADER, fragmentShaderCode
             )
-            val customShaderProgram = createShaderProgram(customFragmentShader)
+            val customShaderProgramForRender = createShaderProgram(customFragmentShader)
+
+            val fragmentShaderCodeForRecord = viewFinder.context.loadShader("glitch_shader.glsl")
+            val customFragmentShaderForRecord = createShader(
+                GLES30.GL_FRAGMENT_SHADER, fragmentShaderCodeForRecord
+            )
+            val customShaderProgramForRecord = createShaderProgram(customFragmentShaderForRecord)
 
             val passthroughFragmentShader = createShader(
                 GLES30.GL_FRAGMENT_SHADER, PASSTHROUGH_FSHADER
@@ -522,8 +527,8 @@ class RenderHandler(
             val passthroughShaderProgram = createShaderProgram(passthroughFragmentShader)
 
             cameraToRenderShaderProgram = passthroughShaderProgram
-            renderToPreviewShaderProgram = customShaderProgram
-            renderToEncodeShaderProgram = customShaderProgram
+            renderToPreviewShaderProgram = customShaderProgramForRender
+            renderToEncodeShaderProgram = customShaderProgramForRecord
 //            renderToEncodeShaderProgram = customShaderProgram
         }
     }
@@ -934,7 +939,11 @@ class RenderHandler(
     }
 
     private fun isHDR(): Boolean {
-        return dynamicRange != DynamicRangeProfiles.STANDARD
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            dynamicRange != DynamicRangeProfiles.STANDARD
+        } else {
+            false
+        }
     }
 
     override fun onFrameAvailable(surfaceTexture: SurfaceTexture) {

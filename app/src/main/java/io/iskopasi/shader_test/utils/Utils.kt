@@ -279,9 +279,8 @@ fun File.saveToDcim(context: Context): File? {
                     outStream.write(this@saveToDcim.readBytes())
                 }
 
-                this@saveToDcim.delete()
+//                this@saveToDcim.delete()
 
-                "-->>>>>> File(uri.path): ${File(uri.path + "/" + filename)}".e
                 return File(uri.path + "/" + filename).apply { "--> Saved to DCIM $this".e }
             } ?: throw IOException("Failed to get output stream.")
         } ?: throw IOException("Failed to create new MediaStore record.")
