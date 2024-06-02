@@ -18,9 +18,7 @@ package io.iskopasi.shader_test.utils.camera_utils
 
 import android.content.Context
 import android.util.AttributeSet
-import android.util.Log
 import android.view.SurfaceView
-import io.iskopasi.shader_test.utils.e
 import kotlin.math.roundToInt
 
 /**
@@ -46,7 +44,7 @@ class AutoFitSurfaceView @JvmOverloads constructor(
         require(width > 0 && height > 0) { "Size cannot be negative" }
         aspectRatio = width.toFloat() / height.toFloat()
         holder.setFixedSize(width, height)
-        "--> setAspectRatio ! ${width} $height".e
+
         requestLayout()
     }
 
@@ -54,6 +52,7 @@ class AutoFitSurfaceView @JvmOverloads constructor(
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
         val width = MeasureSpec.getSize(widthMeasureSpec)
         val height = MeasureSpec.getSize(heightMeasureSpec)
+
         if (aspectRatio == 0f) {
             setMeasuredDimension(width, height)
         } else {
@@ -69,11 +68,8 @@ class AutoFitSurfaceView @JvmOverloads constructor(
                 newHeight = (width / actualRatio).roundToInt()
             }
 
-            Log.d(TAG, "Measured dimensions set: $newWidth x $newHeight")
             setMeasuredDimension(newWidth, newHeight)
         }
-
-        "--> onMeasure ! ${width} $height".e
     }
 
     companion object {

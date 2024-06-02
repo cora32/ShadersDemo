@@ -16,6 +16,7 @@
 
 package io.iskopasi.shader_test.utils.camera_utils
 
+
 import android.content.Context
 import android.hardware.camera2.params.DynamicRangeProfiles
 import android.media.CamcorderProfile
@@ -24,15 +25,12 @@ import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.media.MediaMuxer
 import android.media.MediaRecorder
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.Message
-import android.text.format.Formatter
 import android.util.Log
 import android.view.Surface
-import io.iskopasi.shader_test.utils.e
-
-
 import java.io.File
 import java.lang.ref.WeakReference
 import java.nio.ByteBuffer
@@ -41,16 +39,16 @@ import java.nio.ByteBuffer
  * Encodes video by streaming to disk.
  */
 class EncoderWrapper(
-    width: Int,
-    height: Int,
-    bitRate: Int,
-    frameRate: Int,
-    dynamicRange: Long,
-    orientationHint: Int,
-    outputFile: File,
-    useMediaRecorder: Boolean,
-    videoCodec: Int,
-    val context: Context
+    private val width: Int,
+    private val height: Int,
+    private val bitRate: Int,
+    private val frameRate: Int,
+    private val dynamicRange: Long,
+    private val orientationHint: Int,
+    private val outputFile: File,
+    private val useMediaRecorder: Boolean,
+    private val videoCodec: Int,
+    context: Context
 ) {
     companion object {
         val TAG = "EncoderWrapper"
@@ -62,29 +60,28 @@ class EncoderWrapper(
         const val VIDEO_CODEC_ID_AV1: Int = 2
     }
 
-    private val mWidth = width
-    private val mHeight = height
-    private val mBitRate = bitRate
-    private val mFrameRate = frameRate
-    private val mDynamicRange = dynamicRange
-    private val mOrientationHint = orientationHint
-    private var mOutputFile = outputFile
-    private val mUseMediaRecorder = useMediaRecorder
-    private val mVideoCodec = videoCodec
+    private val isHardware: Boolean
+        get() {
+            return true
+        }
 
-    //    private val mMimeType = VideoCodecFragment.idToType(mVideoCodec)
-    private val mMimeType = when (mVideoCodec) {
+    private val isRotated: Boolean
+        get() {
+            return orientationHint == 90 || orientationHint == 270
+        }
+
+    private val mMimeType = when (videoCodec) {
         VIDEO_CODEC_ID_H264 -> MediaFormat.MIMETYPE_VIDEO_AVC
         VIDEO_CODEC_ID_HEVC -> MediaFormat.MIMETYPE_VIDEO_HEVC
         VIDEO_CODEC_ID_AV1 -> MediaFormat.MIMETYPE_VIDEO_AV1
-        else -> throw RuntimeException("Unexpected video codec id " + mVideoCodec)
+        else -> throw RuntimeException("Unexpected video codec id " + videoCodec)
     }
 
     private val mEncoderThread: EncoderThread? by lazy {
         if (useMediaRecorder) {
             null
         } else {
-            EncoderThread(mEncoder!!, outputFile, mOrientationHint)
+            EncoderThread(mEncoder!!, outputFile, if (isHardware) 0 else orientationHint)
         }
     }
 
@@ -104,7 +101,7 @@ class EncoderWrapper(
             // Prepare and release a dummy MediaRecorder with our new surface
             // Required to allocate an appropriately sized buffer before passing the Surface as the
             //  output target to the capture session
-            createRecorder(surface).apply {
+            createRecorder(context, surface).apply {
                 prepare()
                 release()
             }
@@ -117,14 +114,17 @@ class EncoderWrapper(
 
     private var mMediaRecorder: MediaRecorder? = null
 
-    private fun createRecorder(surface: Surface): MediaRecorder {
-        return MediaRecorder().apply {
+    private fun createRecorder(context: Context, surface: Surface): MediaRecorder {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            MediaRecorder(context)
+        } else {
+            MediaRecorder()
+        }.apply {
             setAudioSource(MediaRecorder.AudioSource.MIC)
             setVideoSource(MediaRecorder.VideoSource.SURFACE)
             setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-//            setVideoEncoder(MediaRecorder.VideoEncoder.H264)
 
-            val videoEncoder = when (mVideoCodec) {
+            val videoEncoder = when (videoCodec) {
                 VIDEO_CODEC_ID_H264 ->
                     MediaRecorder.VideoEncoder.H264
 
@@ -138,19 +138,24 @@ class EncoderWrapper(
             }
             setVideoEncoder(videoEncoder)
             setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-
-            setOutputFile(mOutputFile.absolutePath)
+            setOutputFile(outputFile.absolutePath)
 
             CamcorderProfile.get(CamcorderProfile.QUALITY_1080P).let { profile ->
                 setVideoFrameRate(profile.videoFrameRate)
-                setVideoSize(profile.videoFrameWidth, profile.videoFrameHeight)
+
+                if (isHardware && isRotated) {
+                    setVideoSize(profile.videoFrameHeight, profile.videoFrameWidth)
+                } else {
+                    setVideoSize(profile.videoFrameWidth, profile.videoFrameHeight)
+                }
+
                 setVideoEncodingBitRate(profile.videoBitRate)
                 setAudioEncodingBitRate(profile.audioBitRate)
                 setAudioSamplingRate(profile.audioSampleRate)
             }
 
             setInputSurface(surface)
-            setOrientationHint(mOrientationHint)
+            setOrientationHint(if (isHardware) 0 else orientationHint)
         }
     }
 
@@ -159,9 +164,9 @@ class EncoderWrapper(
      */
     init {
         if (useMediaRecorder) {
-            mMediaRecorder = createRecorder(mInputSurface)
+            mMediaRecorder = createRecorder(context, mInputSurface)
         } else {
-            val codecProfile = when (mVideoCodec) {
+            val codecProfile = when (videoCodec) {
                 VIDEO_CODEC_ID_HEVC -> when {
                     dynamicRange == DynamicRangeProfiles.HLG10 ->
                         MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10
@@ -219,7 +224,7 @@ class EncoderWrapper(
         }
     }
 
-    private fun getTransferFunction() = when (mDynamicRange) {
+    private fun getTransferFunction() = when (dynamicRange) {
         DynamicRangeProfiles.HLG10 -> MediaFormat.COLOR_TRANSFER_HLG
         DynamicRangeProfiles.HDR10 -> MediaFormat.COLOR_TRANSFER_ST2084
         DynamicRangeProfiles.HDR10_PLUS -> MediaFormat.COLOR_TRANSFER_ST2084
@@ -234,7 +239,7 @@ class EncoderWrapper(
     }
 
     fun start() {
-        if (mUseMediaRecorder) {
+        if (useMediaRecorder) {
             mMediaRecorder!!.apply {
                 prepare()
                 start()
@@ -257,7 +262,7 @@ class EncoderWrapper(
     fun shutdown(): Boolean {
         if (VERBOSE) Log.d(TAG, "releasing encoder objects")
 
-        if (mUseMediaRecorder) {
+        if (useMediaRecorder) {
             try {
                 mMediaRecorder!!.stop()
             } catch (e: RuntimeException) {
@@ -268,17 +273,10 @@ class EncoderWrapper(
                 // deleted.
                 Log.e(
                     TAG,
-                    "--> RuntimeException: stop() is called immediately after start() $mOutputFile"
-                );
-
-                "--> File size: ${mOutputFile.length()} ${
-                    Formatter.formatShortFileSize(
-                        context,
-                        mOutputFile.length()
-                    )
-                }".e
+                    "--> RuntimeException: stop() is called immediately after start() $outputFile"
+                )
                 //noinspection ResultOfMethodCallIgnored
-                mOutputFile.delete()
+                outputFile.delete()
                 return false
             }
         } else {
@@ -300,7 +298,7 @@ class EncoderWrapper(
      * Notifies the encoder thread that a new frame is available to the encoder.
      */
     fun frameAvailable() {
-        if (!mUseMediaRecorder) {
+        if (!useMediaRecorder) {
             val handler = mEncoderThread!!.getHandler()
             handler.sendMessage(
                 handler.obtainMessage(
@@ -311,7 +309,7 @@ class EncoderWrapper(
     }
 
     fun waitForFirstFrame() {
-        if (!mUseMediaRecorder) {
+        if (!useMediaRecorder) {
             mEncoderThread!!.waitForFirstFrame()
         }
     }

@@ -168,10 +168,10 @@ class ShaderProgram(
 ) {
 
     //Handle to vertex attributes
-    private val mvpMatrix = FloatArray(16)
+//    private val mvpMatrix = FloatArray(16)
     private var timeProgress = 0f
-    private val rotationAngle = 0f
-    private var takeScreenshot = false
+//    private val rotationAngle = 0f
+//    private var takeScreenshot = false
 
     private fun floatBufferFromArray(array: FloatArray): FloatBuffer {
         val byteBuffer: ByteBuffer = ByteBuffer.allocateDirect(array.size * 4)
@@ -183,7 +183,7 @@ class ShaderProgram(
         return floatBuffer
     }
 
-    fun onDrawFrame(vertexCoords: FloatArray) {
+    fun setVertexAttribArray(vertexCoords: FloatArray) {
         GLES30.glEnableVertexAttribArray(vPositionLoc)
         HardwarePipeline.checkGlError("glEnableVertexAttribArray")
         GLES30.glVertexAttribPointer(

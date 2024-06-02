@@ -30,14 +30,18 @@ import android.view.SurfaceControl
 import android.view.SurfaceView
 import androidx.annotation.RequiresApi
 import androidx.opengl.EGLImageKHR
-import com.example.android.camera2.video.fragments.TransferFragment
 import io.iskopasi.shader_test.utils.e
 import io.iskopasi.shader_test.utils.loadShader
 import java.nio.IntBuffer
 
-private val IDENTITY_MATRIX = floatArrayOf(
-    1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f
-)
+const val PQ_STR = "PQ"
+const val LINEAR_STR = "LINEAR"
+const val HLG_STR = "HLG (Android 14 or above)"
+const val HLG_WORKAROUND_STR = "HLG (Android 13)"
+const val PQ_ID: Int = 0
+const val LINEAR_ID: Int = 1
+const val HLG_ID: Int = 2
+const val HLG_WORKAROUND_ID: Int = 3
 
 private val FULLSCREEN_QUAD = floatArrayOf(
     -1.0f, -1.0f,  // 0 bottom left
@@ -45,21 +49,28 @@ private val FULLSCREEN_QUAD = floatArrayOf(
     -1.0f, 1.0f,  // 2 top left
     1.0f, 1.0f,  // 3 top right
 )
-val HLG_WORKAROUND_ID: Int = 3
-private val EGL_GL_COLORSPACE_KHR = 0x309D
-private val EGL_GL_COLORSPACE_BT2020_LINEAR_EXT = 0x333F
-private val EGL_GL_COLORSPACE_BT2020_PQ_EXT = 0x3340
-private val EGL_GL_COLORSPACE_BT2020_HLG_EXT = 0x3540
-private val EGL_SMPTE2086_DISPLAY_PRIMARY_RX_EXT = 0x3341
-private val EGL_SMPTE2086_DISPLAY_PRIMARY_RY_EXT = 0x3342
-private val EGL_SMPTE2086_DISPLAY_PRIMARY_GX_EXT = 0x3343
-private val EGL_SMPTE2086_DISPLAY_PRIMARY_GY_EXT = 0x3344
-private val EGL_SMPTE2086_DISPLAY_PRIMARY_BX_EXT = 0x3345
-private val EGL_SMPTE2086_DISPLAY_PRIMARY_BY_EXT = 0x3346
-private val EGL_SMPTE2086_WHITE_POINT_X_EXT = 0x3347
-private val EGL_SMPTE2086_WHITE_POINT_Y_EXT = 0x3348
-private val EGL_SMPTE2086_MAX_LUMINANCE_EXT = 0x3349
-private val EGL_SMPTE2086_MIN_LUMINANCE_EXT = 0x334A
+private const val EGL_GL_COLORSPACE_KHR = 0x309D
+private const val EGL_GL_COLORSPACE_BT2020_LINEAR_EXT = 0x333F
+private const val EGL_GL_COLORSPACE_BT2020_PQ_EXT = 0x3340
+private const val EGL_GL_COLORSPACE_BT2020_HLG_EXT = 0x3540
+private const val EGL_SMPTE2086_DISPLAY_PRIMARY_RX_EXT = 0x3341
+private const val EGL_SMPTE2086_DISPLAY_PRIMARY_RY_EXT = 0x3342
+private const val EGL_SMPTE2086_DISPLAY_PRIMARY_GX_EXT = 0x3343
+private const val EGL_SMPTE2086_DISPLAY_PRIMARY_GY_EXT = 0x3344
+private const val EGL_SMPTE2086_DISPLAY_PRIMARY_BX_EXT = 0x3345
+private const val EGL_SMPTE2086_DISPLAY_PRIMARY_BY_EXT = 0x3346
+private const val EGL_SMPTE2086_WHITE_POINT_X_EXT = 0x3347
+private const val EGL_SMPTE2086_WHITE_POINT_Y_EXT = 0x3348
+private const val EGL_SMPTE2086_MAX_LUMINANCE_EXT = 0x3349
+private const val EGL_SMPTE2086_MIN_LUMINANCE_EXT = 0x334A
+
+fun idToStr(transferId: Int): String = when (transferId) {
+    PQ_ID -> PQ_STR
+    LINEAR_ID -> LINEAR_STR
+    HLG_ID -> HLG_STR
+    HLG_WORKAROUND_ID -> HLG_WORKAROUND_STR
+    else -> throw RuntimeException("Unexpected transferId " + transferId)
+}
 
 class RenderHandler(
     looper: Looper,
@@ -131,12 +142,10 @@ class RenderHandler(
     private var cameraToRenderFragmentShader = 0
     private var renderToPreviewFragmentShader = 0
     private var renderToEncodeFragmentShader = 0
-    private var customShader = 0
 
     private var cameraToRenderShaderProgram: ShaderProgram? = null
     private var renderToPreviewShaderProgram: ShaderProgram? = null
     private var renderToEncodeShaderProgram: ShaderProgram? = null
-//    private var customShaderProgram: ShaderProgram? = null
 
     private val cvResourcesCreated = ConditionVariable(false)
     private val cvDestroyWindowSurface = ConditionVariable(false)
@@ -207,49 +216,49 @@ class RenderHandler(
         Log.e(HardwarePipeline.TAG, "eglVersion: " + eglVersion)
 
         /** Check that the necessary extensions for color spaces are supported if HDR is enabled */
-//        if (isHDR()) {
-//            val requiredExtensionsList = mutableListOf<String>("EGL_KHR_gl_colorspace")
-//            if (transfer == TransferFragment.PQ_ID) {
-//                requiredExtensionsList.add("EGL_EXT_gl_colorspace_bt2020_pq")
-//            } else if (transfer == TransferFragment.LINEAR_ID) {
-//                requiredExtensionsList.add("EGL_EXT_gl_colorspace_bt2020_linear")
-//            } else if (transfer == TransferFragment.HLG_ID) {
-//                requiredExtensionsList.add("EGL_EXT_gl_colorspace_bt2020_hlg")
-//            }
-//
-//            val eglExtensions = EGL14.eglQueryString(eglDisplay, EGL14.EGL_EXTENSIONS)
-//
-//            for (requiredExtension in requiredExtensionsList) {
-//                if (!eglExtensions.contains(requiredExtension)) {
-//                    Log.e(HardwarePipeline.TAG, "EGL extension not supported: " + requiredExtension)
-//                    Log.e(HardwarePipeline.TAG, "Supported extensions: ")
-//                    Log.e(HardwarePipeline.TAG, eglExtensions)
-//                    throw RuntimeException("EGL extension not supported: " + requiredExtension)
-//                }
-//            }
-//
-//            // More devices can be supported if the eglCreateSyncKHR is used instead of
-//            // EGL15.eglCreateSync
-//            supportsNativeFences =
-//                eglVersion >= 15 && eglExtensions.contains("EGL_ANDROID_native_fence_sync")
-//        }
+        if (isHDR()) {
+            val requiredExtensionsList = mutableListOf<String>("EGL_KHR_gl_colorspace")
+            if (transfer == PQ_ID) {
+                requiredExtensionsList.add("EGL_EXT_gl_colorspace_bt2020_pq")
+            } else if (transfer == LINEAR_ID) {
+                requiredExtensionsList.add("EGL_EXT_gl_colorspace_bt2020_linear")
+            } else if (transfer == HLG_ID) {
+                requiredExtensionsList.add("EGL_EXT_gl_colorspace_bt2020_hlg")
+            }
 
-//        Log.i(HardwarePipeline.TAG, "isHDR: " + isHDR())
-//        if (isHDR()) {
-//            Log.i(HardwarePipeline.TAG, "Preview transfer: " + TransferFragment.idToStr(transfer))
-//        }
+            val eglExtensions = EGL14.eglQueryString(eglDisplay, EGL14.EGL_EXTENSIONS)
+
+            for (requiredExtension in requiredExtensionsList) {
+                if (!eglExtensions.contains(requiredExtension)) {
+                    Log.e(HardwarePipeline.TAG, "EGL extension not supported: " + requiredExtension)
+                    Log.e(HardwarePipeline.TAG, "Supported extensions: ")
+                    Log.e(HardwarePipeline.TAG, eglExtensions)
+                    throw RuntimeException("EGL extension not supported: " + requiredExtension)
+                }
+            }
+
+            // More devices can be supported if the eglCreateSyncKHR is used instead of
+            // EGL15.eglCreateSync
+            supportsNativeFences =
+                eglVersion >= 15 && eglExtensions.contains("EGL_ANDROID_native_fence_sync")
+        }
+
+        Log.i(HardwarePipeline.TAG, "isHDR: " + isHDR())
+        if (isHDR()) {
+            Log.i(HardwarePipeline.TAG, "Preview transfer: " + idToStr(transfer))
+        }
 
         var renderableType = EGL14.EGL_OPENGL_ES2_BIT
-//        if (isHDR()) {
-//            renderableType = EGLExt.EGL_OPENGL_ES3_BIT_KHR
-//        }
+        if (isHDR()) {
+            renderableType = EGLExt.EGL_OPENGL_ES3_BIT_KHR
+        }
 
         var rgbBits = 8
         var alphaBits = 8
-//        if (isHDR()) {
-//            rgbBits = 10
-//            alphaBits = 2
-//        }
+        if (isHDR()) {
+            rgbBits = 10
+            alphaBits = 2
+        }
 
         val configAttribList = intArrayOf(
             EGL14.EGL_RENDERABLE_TYPE,
@@ -273,9 +282,9 @@ class RenderHandler(
         eglConfig = configs[0]!!
 
         var requestedVersion = 2
-//        if (isHDR()) {
-//            requestedVersion = 3
-//        }
+        if (isHDR()) {
+            requestedVersion = 3
+        }
 
         val contextAttribList = intArrayOf(
             EGL14.EGL_CONTEXT_CLIENT_VERSION, requestedVersion, EGL14.EGL_NONE
@@ -309,26 +318,26 @@ class RenderHandler(
         }
 
         var windowSurfaceAttribs = intArrayOf(EGL14.EGL_NONE)
-//        if (isHDR()) {
-//            windowSurfaceAttribs = when (transfer) {
-//                TransferFragment.PQ_ID -> intArrayOf(
-//                    EGL_GL_COLORSPACE_KHR, EGL_GL_COLORSPACE_BT2020_PQ_EXT, EGL14.EGL_NONE
-//                )
-//
-//                TransferFragment.LINEAR_ID -> intArrayOf(
-//                    EGL_GL_COLORSPACE_KHR, EGL_GL_COLORSPACE_BT2020_LINEAR_EXT, EGL14.EGL_NONE
-//                )
-//                // We configure HLG below
-//                TransferFragment.HLG_ID -> intArrayOf(
-//                    EGL_GL_COLORSPACE_KHR, EGL_GL_COLORSPACE_BT2020_HLG_EXT, EGL14.EGL_NONE
-//                )
-//
-//                TransferFragment.HLG_WORKAROUND_ID -> intArrayOf(EGL14.EGL_NONE)
-//                else -> throw RuntimeException("Unexpected transfer " + transfer)
-//            }
-//        }
+        if (isHDR()) {
+            windowSurfaceAttribs = when (transfer) {
+                PQ_ID -> intArrayOf(
+                    EGL_GL_COLORSPACE_KHR, EGL_GL_COLORSPACE_BT2020_PQ_EXT, EGL14.EGL_NONE
+                )
 
-        if (!isHDR() or (transfer != TransferFragment.HLG_WORKAROUND_ID)) {
+                LINEAR_ID -> intArrayOf(
+                    EGL_GL_COLORSPACE_KHR, EGL_GL_COLORSPACE_BT2020_LINEAR_EXT, EGL14.EGL_NONE
+                )
+                // We configure HLG below
+                HLG_ID -> intArrayOf(
+                    EGL_GL_COLORSPACE_KHR, EGL_GL_COLORSPACE_BT2020_HLG_EXT, EGL14.EGL_NONE
+                )
+
+                HLG_WORKAROUND_ID -> intArrayOf(EGL14.EGL_NONE)
+                else -> throw RuntimeException("Unexpected transfer " + transfer)
+            }
+        }
+
+        if (!isHDR() or (transfer != HLG_WORKAROUND_ID)) {
             eglWindowSurface = EGL14.eglCreateWindowSurface(
                 eglDisplay, eglConfig, surface, windowSurfaceAttribs, 0
             )
@@ -337,108 +346,111 @@ class RenderHandler(
             }
         }
 
-//        if (eglWindowSurface != EGL14.EGL_NO_SURFACE) {
-//            /**
-//             * This is only experimental for the transfer function. It is intended to be
-//             * supplied alongside CTA 861.3 metadata
-//             * https://registry.khronos.org/EGL/extensions/EXT/EGL_EXT_surface_CTA861_3_metadata.txt.
-//             * which describes the max and average luminance of the content).
-//             *
-//             * The display will use these parameters to map the source content colors to a
-//             * colors that fill the display's capabilities.
-//             *
-//             * Without providing these parameters, the display will assume "reasonable defaults",
-//             * which may not be accurate for the source content. This would most likely result
-//             * in inaccurate colors, although the exact effect is device-dependent.
-//             *
-//             * The parameters needs to be tuned.
-//             * */
-//            if (isHDR() and (transfer == TransferFragment.PQ_ID)) {
-//                val SMPTE2086_MULTIPLIER = 50000
-//                EGL14.eglSurfaceAttrib(
-//                    eglDisplay,
-//                    eglWindowSurface,
-//                    EGL_SMPTE2086_MAX_LUMINANCE_EXT,
-//                    10000 * SMPTE2086_MULTIPLIER
-//                )
-//                EGL14.eglSurfaceAttrib(
-//                    eglDisplay, eglWindowSurface, EGL_SMPTE2086_MIN_LUMINANCE_EXT, 0
-//                )
-//                EGL14.eglSurfaceAttrib(
-//                    eglDisplay,
-//                    eglWindowSurface,
-//                    EGL_SMPTE2086_DISPLAY_PRIMARY_RX_EXT,
-//                    (0.708f * SMPTE2086_MULTIPLIER).toInt()
-//                )
-//                EGL14.eglSurfaceAttrib(
-//                    eglDisplay,
-//                    eglWindowSurface,
-//                    EGL_SMPTE2086_DISPLAY_PRIMARY_RY_EXT,
-//                    (0.292f * SMPTE2086_MULTIPLIER).toInt()
-//                )
-//                EGL14.eglSurfaceAttrib(
-//                    eglDisplay,
-//                    eglWindowSurface,
-//                    EGL_SMPTE2086_DISPLAY_PRIMARY_GX_EXT,
-//                    (0.170f * SMPTE2086_MULTIPLIER).toInt()
-//                )
-//                EGL14.eglSurfaceAttrib(
-//                    eglDisplay,
-//                    eglWindowSurface,
-//                    EGL_SMPTE2086_DISPLAY_PRIMARY_GY_EXT,
-//                    (0.797f * SMPTE2086_MULTIPLIER).toInt()
-//                )
-//                EGL14.eglSurfaceAttrib(
-//                    eglDisplay,
-//                    eglWindowSurface,
-//                    EGL_SMPTE2086_DISPLAY_PRIMARY_BX_EXT,
-//                    (0.131f * SMPTE2086_MULTIPLIER).toInt()
-//                )
-//                EGL14.eglSurfaceAttrib(
-//                    eglDisplay,
-//                    eglWindowSurface,
-//                    EGL_SMPTE2086_DISPLAY_PRIMARY_BY_EXT,
-//                    (0.046f * SMPTE2086_MULTIPLIER).toInt()
-//                )
-//                EGL14.eglSurfaceAttrib(
-//                    eglDisplay,
-//                    eglWindowSurface,
-//                    EGL_SMPTE2086_WHITE_POINT_X_EXT,
-//                    (0.3127f * SMPTE2086_MULTIPLIER).toInt()
-//                )
-//                EGL14.eglSurfaceAttrib(
-//                    eglDisplay,
-//                    eglWindowSurface,
-//                    EGL_SMPTE2086_WHITE_POINT_Y_EXT,
-//                    (0.3290f * SMPTE2086_MULTIPLIER).toInt()
-//                )
-//            }
-//        }
+        if (eglWindowSurface != EGL14.EGL_NO_SURFACE) {
+            /**
+             * This is only experimental for the transfer function. It is intended to be
+             * supplied alongside CTA 861.3 metadata
+             * https://registry.khronos.org/EGL/extensions/EXT/EGL_EXT_surface_CTA861_3_metadata.txt.
+             * which describes the max and average luminance of the content).
+             *
+             * The display will use these parameters to map the source content colors to a
+             * colors that fill the display's capabilities.
+             *
+             * Without providing these parameters, the display will assume "reasonable defaults",
+             * which may not be accurate for the source content. This would most likely result
+             * in inaccurate colors, although the exact effect is device-dependent.
+             *
+             * The parameters needs to be tuned.
+             * */
+            if (isHDR() and (transfer == PQ_ID)) {
+                val SMPTE2086_MULTIPLIER = 50000
+                EGL14.eglSurfaceAttrib(
+                    eglDisplay,
+                    eglWindowSurface,
+                    EGL_SMPTE2086_MAX_LUMINANCE_EXT,
+                    10000 * SMPTE2086_MULTIPLIER
+                )
+                EGL14.eglSurfaceAttrib(
+                    eglDisplay, eglWindowSurface, EGL_SMPTE2086_MIN_LUMINANCE_EXT, 0
+                )
+                EGL14.eglSurfaceAttrib(
+                    eglDisplay,
+                    eglWindowSurface,
+                    EGL_SMPTE2086_DISPLAY_PRIMARY_RX_EXT,
+                    (0.708f * SMPTE2086_MULTIPLIER).toInt()
+                )
+                EGL14.eglSurfaceAttrib(
+                    eglDisplay,
+                    eglWindowSurface,
+                    EGL_SMPTE2086_DISPLAY_PRIMARY_RY_EXT,
+                    (0.292f * SMPTE2086_MULTIPLIER).toInt()
+                )
+                EGL14.eglSurfaceAttrib(
+                    eglDisplay,
+                    eglWindowSurface,
+                    EGL_SMPTE2086_DISPLAY_PRIMARY_GX_EXT,
+                    (0.170f * SMPTE2086_MULTIPLIER).toInt()
+                )
+                EGL14.eglSurfaceAttrib(
+                    eglDisplay,
+                    eglWindowSurface,
+                    EGL_SMPTE2086_DISPLAY_PRIMARY_GY_EXT,
+                    (0.797f * SMPTE2086_MULTIPLIER).toInt()
+                )
+                EGL14.eglSurfaceAttrib(
+                    eglDisplay,
+                    eglWindowSurface,
+                    EGL_SMPTE2086_DISPLAY_PRIMARY_BX_EXT,
+                    (0.131f * SMPTE2086_MULTIPLIER).toInt()
+                )
+                EGL14.eglSurfaceAttrib(
+                    eglDisplay,
+                    eglWindowSurface,
+                    EGL_SMPTE2086_DISPLAY_PRIMARY_BY_EXT,
+                    (0.046f * SMPTE2086_MULTIPLIER).toInt()
+                )
+                EGL14.eglSurfaceAttrib(
+                    eglDisplay,
+                    eglWindowSurface,
+                    EGL_SMPTE2086_WHITE_POINT_X_EXT,
+                    (0.3127f * SMPTE2086_MULTIPLIER).toInt()
+                )
+                EGL14.eglSurfaceAttrib(
+                    eglDisplay,
+                    eglWindowSurface,
+                    EGL_SMPTE2086_WHITE_POINT_Y_EXT,
+                    (0.3290f * SMPTE2086_MULTIPLIER).toInt()
+                )
+            }
+        }
 
+        "setDefaultBufferSize: 1920 1080"
+        "--> setDefaultBufferSize: $width $height".e
         cameraTexId = createTexture()
         cameraTexture = SurfaceTexture(cameraTexId)
         cameraTexture.setOnFrameAvailableListener(this)
         cameraTexture.setDefaultBufferSize(width, height)
         cameraSurface = Surface(cameraTexture)
 
-
-//        if (isHDR() and (transfer == TransferFragment.HLG_WORKAROUND_ID)) {
-//            // Communicating HLG content may not be supported on EGLSurface in API 33, as there
-//            // is no EGL extension for communicating the surface color space. Instead, create
-//            // a child SurfaceControl whose parent is the viewFinder's SurfaceView and push
-//            // buffers directly to the SurfaceControl.
-//            contentSurfaceControl = SurfaceControl.Builder().setName("HardwarePipeline")
-//                .setParent(viewFinder.surfaceControl).setHidden(false).build()
-//            windowTexId = createTexId()
-//            windowFboId = createFboId()
-//        }
+        if (isHDR() and (transfer == HLG_WORKAROUND_ID)) {
+            // Communicating HLG content may not be supported on EGLSurface in API 33, as there
+            // is no EGL extension for communicating the surface color space. Instead, create
+            // a child SurfaceControl whose parent is the viewFinder's SurfaceView and push
+            // buffers directly to the SurfaceControl.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                contentSurfaceControl = SurfaceControl.Builder().setName("HardwarePipeline")
+                    .setParent(viewFinder.surfaceControl).setHidden(false).build()
+            }
+            windowTexId = createTexId()
+            windowFboId = createFboId()
+        }
 
         renderTexId = createTexture()
         renderTexture = SurfaceTexture(renderTexId)
         renderTexture.setDefaultBufferSize(width, height)
         renderSurface = Surface(renderTexture)
 
-        var renderSurfaceAttribs = intArrayOf(EGL14.EGL_NONE)
+        val renderSurfaceAttribs = intArrayOf(EGL14.EGL_NONE)
         eglRenderSurface = EGL14.eglCreateWindowSurface(
             eglDisplay, eglConfig, renderSurface, renderSurfaceAttribs, 0
         )
@@ -452,49 +464,49 @@ class RenderHandler(
 
     private fun createShaderResources() {
         if (isHDR()) {
-//            /** Check that GL_EXT_YUV_target is supported for HDR */
-//            val extensions = GLES30.glGetString(GLES30.GL_EXTENSIONS)
-//            if (!extensions.contains("GL_EXT_YUV_target")) {
-//                throw RuntimeException("Device does not support GL_EXT_YUV_target")
-//            }
-//
-//            vertexShader = createShader(GLES30.GL_VERTEX_SHADER, TRANSFORM_HDR_VSHADER)
-//
-//            cameraToRenderFragmentShader = when (filterOn) {
-//                false -> createShader(
-//                    GLES30.GL_FRAGMENT_SHADER, YUV_TO_RGB_PASSTHROUGH_HDR_FSHADER
-//                )
-//
-//                true -> createShader(
-//                    GLES30.GL_FRAGMENT_SHADER, YUV_TO_RGB_PORTRAIT_HDR_FSHADER
-//                )
-//            }
-//            cameraToRenderShaderProgram = createShaderProgram(cameraToRenderFragmentShader)
-//
-//            renderToPreviewFragmentShader = when (transfer) {
-//                TransferFragment.PQ_ID -> createShader(
-//                    GLES30.GL_FRAGMENT_SHADER, HLG_TO_PQ_HDR_FSHADER
-//                )
-//
-//                TransferFragment.LINEAR_ID -> createShader(
-//                    GLES30.GL_FRAGMENT_SHADER, HLG_TO_LINEAR_HDR_FSHADER
-//                )
-//
-//                TransferFragment.HLG_ID, TransferFragment.HLG_WORKAROUND_ID -> createShader(
-//                    GLES30.GL_FRAGMENT_SHADER, PASSTHROUGH_HDR_FSHADER
-//                )
-//
-//                else -> throw RuntimeException("Unexpected transfer " + transfer)
-//            }
-//
-//            renderToPreviewShaderProgram = createShaderProgram(
-//                renderToPreviewFragmentShader
-//            )
-//
-//            renderToEncodeFragmentShader = createShader(
-//                GLES30.GL_FRAGMENT_SHADER, PASSTHROUGH_HDR_FSHADER
-//            )
-//            renderToEncodeShaderProgram = createShaderProgram(renderToEncodeFragmentShader)
+            /** Check that GL_EXT_YUV_target is supported for HDR */
+            val extensions = GLES30.glGetString(GLES30.GL_EXTENSIONS)
+            if (!extensions.contains("GL_EXT_YUV_target")) {
+                throw RuntimeException("Device does not support GL_EXT_YUV_target")
+            }
+
+            vertexShader = createShader(GLES30.GL_VERTEX_SHADER, TRANSFORM_HDR_VSHADER)
+
+            cameraToRenderFragmentShader = when (filterOn) {
+                false -> createShader(
+                    GLES30.GL_FRAGMENT_SHADER, YUV_TO_RGB_PASSTHROUGH_HDR_FSHADER
+                )
+
+                true -> createShader(
+                    GLES30.GL_FRAGMENT_SHADER, YUV_TO_RGB_PORTRAIT_HDR_FSHADER
+                )
+            }
+            cameraToRenderShaderProgram = createShaderProgram(cameraToRenderFragmentShader)
+
+            renderToPreviewFragmentShader = when (transfer) {
+                PQ_ID -> createShader(
+                    GLES30.GL_FRAGMENT_SHADER, HLG_TO_PQ_HDR_FSHADER
+                )
+
+                LINEAR_ID -> createShader(
+                    GLES30.GL_FRAGMENT_SHADER, HLG_TO_LINEAR_HDR_FSHADER
+                )
+
+                HLG_ID, HLG_WORKAROUND_ID -> createShader(
+                    GLES30.GL_FRAGMENT_SHADER, PASSTHROUGH_HDR_FSHADER
+                )
+
+                else -> throw RuntimeException("Unexpected transfer " + transfer)
+            }
+
+            renderToPreviewShaderProgram = createShaderProgram(
+                renderToPreviewFragmentShader
+            )
+
+            renderToEncodeFragmentShader = createShader(
+                GLES30.GL_FRAGMENT_SHADER, PASSTHROUGH_HDR_FSHADER
+            )
+            renderToEncodeShaderProgram = createShaderProgram(renderToEncodeFragmentShader)
         } else {
             vertexShader = createShader(GLES30.GL_VERTEX_SHADER, TRANSFORM_VSHADER)
 
@@ -504,23 +516,15 @@ class RenderHandler(
             )
             val customShaderProgram = createShaderProgram(customFragmentShader)
 
-
             val passthroughFragmentShader = createShader(
                 GLES30.GL_FRAGMENT_SHADER, PASSTHROUGH_FSHADER
             )
             val passthroughShaderProgram = createShaderProgram(passthroughFragmentShader)
 
-//            cameraToRenderShaderProgram = when (filterOn) {
-//                false -> passthroughShaderProgram
-//                true -> createShaderProgram(
-//                    createShader(
-//                        GLES30.GL_FRAGMENT_SHADER, PORTRAIT_FSHADER
-//                    )
-//                )
-//            }
             cameraToRenderShaderProgram = passthroughShaderProgram
             renderToPreviewShaderProgram = customShaderProgram
             renderToEncodeShaderProgram = customShaderProgram
+//            renderToEncodeShaderProgram = customShaderProgram
         }
     }
 
@@ -617,10 +621,10 @@ class RenderHandler(
         val texId = createTexId()
         GLES30.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, texId)
         GLES30.glTexParameteri(
-            GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES30.GL_TEXTURE_MIN_FILTER, GLES30.GL_NEAREST
+            GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES30.GL_TEXTURE_MIN_FILTER, GLES30.GL_LINEAR
         )
         GLES30.glTexParameteri(
-            GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES30.GL_TEXTURE_MAG_FILTER, GLES30.GL_NEAREST
+            GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES30.GL_TEXTURE_MAG_FILTER, GLES30.GL_LINEAR
         )
         GLES30.glTexParameteri(
             GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES30.GL_TEXTURE_WRAP_S, GLES30.GL_CLAMP_TO_EDGE
@@ -672,7 +676,7 @@ class RenderHandler(
         }
         shaderProgram.setTexMatrix(texMatrix)
 
-        shaderProgram.onDrawFrame(FULLSCREEN_QUAD)
+        shaderProgram.setVertexAttribArray(FULLSCREEN_QUAD)
 
         GLES30.glViewport(
             viewportRect.left, viewportRect.top, viewportRect.right, viewportRect.bottom
@@ -702,43 +706,43 @@ class RenderHandler(
         var hardwareBuffer: HardwareBuffer? = null
         var eglImage: EGLImageKHR? = null
         if (transfer == HLG_WORKAROUND_ID) {
-//            EGL14.eglMakeCurrent(eglDisplay, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, eglContext)
-//
-//            // TODO: use GLFrameBufferRenderer to optimize the performance
-//            // Note that pooling and reusing HardwareBuffers will have significantly better
-//            // memory utilization so the HardwareBuffers do not have to be allocated every frame
-//            hardwareBuffer = HardwareBuffer.create(
-//                previewSize.width,
-//                previewSize.height,
-//                HardwareBuffer.RGBA_1010102,
-//                1,
-//                HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE or HardwareBuffer.USAGE_GPU_COLOR_OUTPUT or HardwareBuffer.USAGE_COMPOSER_OVERLAY
-//            )
-//
-//            // If we're sending output buffers to a SurfaceControl we cannot render to an
-//            // EGLSurface. We need to render to a HardwareBuffer instead by importing the
-//            // HardwareBuffer into EGL, associating it with a texture, and framebuffer, and
-//            // drawing directly into the HardwareBuffer.
-//            eglImage = androidx.opengl.EGLExt.eglCreateImageFromHardwareBuffer(
-//                eglDisplay, hardwareBuffer
-//            )
-//            HardwarePipeline.checkGlError("eglCreateImageFromHardwareBuffer")
-//
-//            GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, windowTexId)
-//            HardwarePipeline.checkGlError("glBindTexture")
-//            androidx.opengl.EGLExt.glEGLImageTargetTexture2DOES(GLES30.GL_TEXTURE_2D, eglImage!!)
-//            HardwarePipeline.checkGlError("glEGLImageTargetTexture2DOES")
-//
-//            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, windowFboId);
-//            HardwarePipeline.checkGlError("glBindFramebuffer")
-//            GLES30.glFramebufferTexture2D(
-//                GLES30.GL_FRAMEBUFFER,
-//                GLES30.GL_COLOR_ATTACHMENT0,
-//                GLES30.GL_TEXTURE_2D,
-//                windowTexId,
-//                0
-//            );
-//            HardwarePipeline.checkGlError("glFramebufferTexture2D")
+            EGL14.eglMakeCurrent(eglDisplay, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, eglContext)
+
+            // TODO: use GLFrameBufferRenderer to optimize the performance
+            // Note that pooling and reusing HardwareBuffers will have significantly better
+            // memory utilization so the HardwareBuffers do not have to be allocated every frame
+            hardwareBuffer = HardwareBuffer.create(
+                previewSize.width,
+                previewSize.height,
+                HardwareBuffer.RGBA_1010102,
+                1,
+                HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE or HardwareBuffer.USAGE_GPU_COLOR_OUTPUT or HardwareBuffer.USAGE_COMPOSER_OVERLAY
+            )
+
+            // If we're sending output buffers to a SurfaceControl we cannot render to an
+            // EGLSurface. We need to render to a HardwareBuffer instead by importing the
+            // HardwareBuffer into EGL, associating it with a texture, and framebuffer, and
+            // drawing directly into the HardwareBuffer.
+            eglImage = androidx.opengl.EGLExt.eglCreateImageFromHardwareBuffer(
+                eglDisplay, hardwareBuffer
+            )
+            HardwarePipeline.checkGlError("eglCreateImageFromHardwareBuffer")
+
+            GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, windowTexId)
+            HardwarePipeline.checkGlError("glBindTexture")
+            androidx.opengl.EGLExt.glEGLImageTargetTexture2DOES(GLES30.GL_TEXTURE_2D, eglImage!!)
+            HardwarePipeline.checkGlError("glEGLImageTargetTexture2DOES")
+
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, windowFboId);
+            HardwarePipeline.checkGlError("glBindFramebuffer")
+            GLES30.glFramebufferTexture2D(
+                GLES30.GL_FRAMEBUFFER,
+                GLES30.GL_COLOR_ATTACHMENT0,
+                GLES30.GL_TEXTURE_2D,
+                windowTexId,
+                0
+            );
+            HardwarePipeline.checkGlError("glFramebufferTexture2D")
         } else {
             EGL14.eglMakeCurrent(eglDisplay, eglWindowSurface, eglRenderSurface, eglContext)
         }
@@ -813,10 +817,10 @@ class RenderHandler(
 
         /** Swap width and height if the camera is rotated on its side. */
         "--> $orientation".e
-//        if (orientation == 90 || orientation == 270) {
-//            viewportWidth = height
-//            viewportHeight = width
-//        }
+        if (orientation == 90 || orientation == 270) {
+            viewportWidth = height
+            viewportHeight = width
+        }
 
         onDrawFrame(
             renderTexId,
@@ -922,8 +926,8 @@ class RenderHandler(
 
         /** Copy from the render texture to the TextureView */
         copyRenderToPreview()
-//
-//        /** Copy to the encoder surface if we're currently recording. */
+
+        /** Copy to the encoder surface if we're currently recording. */
         if (eglEncoderSurface != EGL14.EGL_NO_SURFACE && currentlyRecording) {
             copyRenderToEncode()
         }

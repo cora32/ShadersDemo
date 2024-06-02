@@ -28,7 +28,7 @@ import io.iskopasi.shader_test.utils.bg
 import io.iskopasi.shader_test.utils.createFile
 import io.iskopasi.shader_test.utils.e
 import io.iskopasi.shader_test.utils.main
-import io.iskopasi.shader_test.utils.share
+import io.iskopasi.shader_test.utils.play
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.File
@@ -142,35 +142,20 @@ class CameraController2(val isFront: Boolean, lifecycleOwner: LifecycleOwner) :
     }
 
     private fun createEncoder(
-        w: Int,
-        h: Int,
+        width: Int,
+        height: Int,
         orientation: Int,
         outputFile: File,
         context: Context
     ): EncoderWrapper {
-        var width = w
-        var height = h
-        var orientationHint = orientation
-
-        val useHardware = true
-        if (useHardware) {
-            if (orientation == 90 || orientation == 270) {
-                width = h
-                height = w
-            }
-            orientationHint = 0
-        }
-
-        val useMediaRecorder = true
-
         return EncoderWrapper(
             width, height,
             RECORDER_VIDEO_BITRATE,
             fps,
             dynamicRange,
-            orientationHint,
+            orientation,
             outputFile,
-            useMediaRecorder,
+            useMediaRecorder = true,
             videoCodec,
             context.applicationContext
         )
@@ -448,17 +433,9 @@ class CameraController2(val isFront: Boolean, lifecycleOwner: LifecycleOwner) :
                 )
 
                 if (outputFile.exists()) {
-                    outputFile.share(context)
-                    // Launch external activity via intent to play video recorded using our provider
-//                    ContextCompat.startActivity(context, Intent().apply {
-//                        action = Intent.ACTION_VIEW
-//                        type = MimeTypeMap.getSingleton()
-//                            .getMimeTypeFromExtension(outputFile.extension)
-//                        val authority = "${BuildConfig.APPLICATION_ID}.provider"
-//                        data = FileProvider.getUriForFile(context, authority, outputFile)
-//                        flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
-//                                Intent.FLAG_ACTIVITY_CLEAR_TOP
-//                    }, null)
+//                    outputFile.share(context)
+//                    outputFile.saveToDcim(context)?.play(context)
+                    outputFile.play(context)
                 } else {
                     // TODO:
                     //  1. Move the callback to ACTION_DOWN, activating it on the second press

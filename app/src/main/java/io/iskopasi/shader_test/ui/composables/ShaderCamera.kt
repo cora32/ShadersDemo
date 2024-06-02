@@ -29,7 +29,7 @@ import kotlin.coroutines.suspendCoroutine
 fun CameraView(controller: DrawerController) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val isFront = false
+    val isFront = true
 //    var cameraController: Camera2Controller? = null
 //    val view = remember {
 //        GLSurfaceView(context).apply {
@@ -51,8 +51,6 @@ fun CameraView(controller: DrawerController) {
             .fillMaxSize()
             .clickable {
                 cameraController!!.startVideoRec(context)
-//                cameraController!!.snapshot(context)
-//                renderer!!.takeScreenshot()
             }
     )
 }

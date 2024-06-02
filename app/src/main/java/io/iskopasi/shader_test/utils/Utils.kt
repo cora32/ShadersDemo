@@ -10,6 +10,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Picture
 import android.media.Image
 import android.os.Build
+import android.os.FileUtils
 import android.provider.MediaStore
 import android.util.Log
 import android.webkit.MimeTypeMap
@@ -183,9 +184,6 @@ fun Image.toBitmap(): Bitmap = planes[0].buffer.let {
 fun Image.saveToFile(context: Context) = toBitmap().saveToFile(context)
 
 fun Bitmap.saveToFile(context: Context) {
-    // Add a specific media item.
-    val resolver = context.contentResolver
-
     val imageStorageAddress = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
     } else {
@@ -198,10 +196,10 @@ fun Bitmap.saveToFile(context: Context) {
         put(MediaStore.MediaColumns.DATE_ADDED, System.currentTimeMillis())
     }
 
-    try {
-        // Save the image.
-        resolver.insert(imageStorageAddress, imageDetails)?.let { uri ->
-            resolver.openOutputStream(uri)?.use { outStream ->
+    // Save the image.
+    context.contentResolver.apply {
+        insert(imageStorageAddress, imageDetails)?.let { uri ->
+            openOutputStream(uri)?.use { outStream ->
                 val isBitmapCompressed =
                     compress(
                         Bitmap.CompressFormat.JPEG,
@@ -211,8 +209,6 @@ fun Bitmap.saveToFile(context: Context) {
                 recycle()
             } ?: throw IOException("Failed to get output stream.")
         } ?: throw IOException("Failed to create new MediaStore record.")
-    } catch (e: IOException) {
-        throw e
     }
 }
 
@@ -253,4 +249,43 @@ fun File.play(context: Context) {
 fun Context.createFile(extension: String): File {
     val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.US)
     return File(this.filesDir, "shadertoy_${sdf.format(Date())}.$extension")
+}
+
+fun File.saveToDcim(context: Context): File? {
+    val storageAddress = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+    } else {
+        MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+    }
+
+    val filename = "shadertoy_${System.currentTimeMillis()}.${this@saveToDcim.extension}"
+    val details = ContentValues().apply {
+        put(
+            MediaStore.Video.Media.DISPLAY_NAME,
+            filename
+        )
+        put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
+        put(MediaStore.MediaColumns.DATE_ADDED, System.currentTimeMillis())
+    }
+
+    context.contentResolver.apply {
+        insert(storageAddress, details)?.let { uri ->
+            openOutputStream(uri)?.use { outStream ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    this@saveToDcim.inputStream().use {
+                        FileUtils.copy(it, outStream)
+                    }
+                } else {
+                    outStream.write(this@saveToDcim.readBytes())
+                }
+
+                this@saveToDcim.delete()
+
+                "-->>>>>> File(uri.path): ${File(uri.path + "/" + filename)}".e
+                return File(uri.path + "/" + filename).apply { "--> Saved to DCIM $this".e }
+            } ?: throw IOException("Failed to get output stream.")
+        } ?: throw IOException("Failed to create new MediaStore record.")
+    }
+
+    return null
 }
