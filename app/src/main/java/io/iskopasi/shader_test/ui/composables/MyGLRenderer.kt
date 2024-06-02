@@ -34,12 +34,13 @@ class MyGLRenderer(
     encoder: EncoderWrapper
 ) : GLSurfaceView.Renderer,
     OnFrameAvailableListener {
-    var mSurfaceTexture: SurfaceTexture? = null
-    private lateinit var cameraSurface: Surface
+    private var previewTexId: Int = 0
+    private var previewTexture: SurfaceTexture? = null
+    private lateinit var previewSurface: Surface
+
     private var timeProgress = 0f
 
     //Texture ID of camera image
-    private var textureId: Int = 0
     private val COORDS_PER_VERTEX = 2
     private val TEXTURE_COORDS_PER_VERTEX = 2
 
@@ -94,14 +95,11 @@ class MyGLRenderer(
     private val mvpMatrix = FloatArray(16)
 
     init {
-        textureId = createTexture()
-        mSurfaceTexture = SurfaceTexture(textureId)
-        "---> MyGLRenderer setting size: ${size.width}, ${size.height}".e
-        mSurfaceTexture?.setDefaultBufferSize(size.width, size.height)
-        mSurfaceTexture?.setOnFrameAvailableListener(this)
-        cameraSurface = Surface(mSurfaceTexture)
-
-//        initEGL()
+        previewTexId = createTexture()
+        previewTexture = SurfaceTexture(previewTexId)
+        previewTexture?.setDefaultBufferSize(size.width, size.height)
+        previewSurface = Surface(previewTexture)
+        previewTexture?.setOnFrameAvailableListener(this)
     }
 
 
@@ -208,25 +206,28 @@ class MyGLRenderer(
             throw RuntimeException("Failed to create EGL context")
         }
 
-        val clientVersion = intArrayOf(0)
-        EGL14.eglQueryContext(
-            eglDisplay, eglContext, EGL14.EGL_CONTEXT_CLIENT_VERSION, clientVersion, 0
-        )
+//        val clientVersion = intArrayOf(0)
+//        EGL14.eglQueryContext(
+//            eglDisplay, eglContext, EGL14.EGL_CONTEXT_CLIENT_VERSION, clientVersion, 0
+//        )
 //        Log.e(HardwarePipeline.TAG, "EGLContext created, client version " + clientVersion[0])
 
-        val tmpSurfaceAttribs = intArrayOf(
-            EGL14.EGL_WIDTH, 1, EGL14.EGL_HEIGHT, 1, EGL14.EGL_NONE
-        )
-        val tmpSurface = EGL14.eglCreatePbufferSurface(
-            eglDisplay, eglConfig, tmpSurfaceAttribs, /*offset*/ 0
-        )
-        EGL14.eglMakeCurrent(eglDisplay, tmpSurface, tmpSurface, eglContext)
+//        val tmpSurfaceAttribs = intArrayOf(
+//            EGL14.EGL_WIDTH, 1, EGL14.EGL_HEIGHT, 1, EGL14.EGL_NONE
+//        )
+//        val tmpSurface = EGL14.eglCreatePbufferSurface(
+//            eglDisplay, eglConfig, tmpSurfaceAttribs, /*offset*/ 0
+//        )
+//        EGL14.eglMakeCurrent(eglDisplay, tmpSurface, tmpSurface, eglContext)
     }
 
     /**
      * Initialize OpenGL and load the vertex shader and fragment shader. By compiling and linking the shader, creating the shader program and getting a handle to the vertex attribute.
      */
     override fun onSurfaceCreated(p0: GL10?, p1: EGLConfig?) {
+        "--> onSurfaceCreated ${Thread.currentThread().name}".e
+        initEGL()
+
         val fragmentShaderCode = mGLSurfaceView.context.loadShader("glitch_shader2.glsl")
 
         // Initialize the OpenGL environment here, such as creating textures, shader programs, etc.
@@ -304,21 +305,21 @@ class MyGLRenderer(
         GLES20.glUniform1f(iTimeHandle, timeProgress++)
         GLES20.glUniform1f(iRandHandle, Random.nextFloat())
 
-        //Update texture image
-        mSurfaceTexture?.updateTexImage()
+        previewTexture?.updateTexImage()
 
         copyToPreview()
 
         /** Copy to the encoder surface if we're currently recording. */
-//        "eglEncoderSurface != EGL14.EGL_NO_SURFACE: ${eglEncoderSurface != EGL14.EGL_NO_SURFACE} $currentlyRecording".e
         if (eglEncoderSurface != EGL14.EGL_NO_SURFACE && currentlyRecording) {
             copyToRecorder()
         }
 
-        if (takeScreenshot) {
-            takeScreenshot = false
-            makeCringeshot()
-        }
+//        if (takeScreenshot) {
+//            takeScreenshot = false
+//            makeCringeshot()
+//        }
+
+        //Update texture image
     }
 
     private fun copyToPreview() {
@@ -347,38 +348,69 @@ class MyGLRenderer(
         GLES20.glEnableVertexAttribArray(textureCoordHandle)
         // Activate texture unit 0 and bind the current texture to the external OES texture target
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
-        GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, textureId)
+        GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, previewTexId)
         //Draw the primitives of the triangle strip
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, VERTEX_COORDS.size / COORDS_PER_VERTEX)
     }
 
     private fun copyToRecorder() {
-        "--> copiing to recorder! eglDisplay: $eglDisplay $eglEncoderSurface $eglContext".e
+        "--> copyToRecorder ${Thread.currentThread().name}".e
+//        EGL14.eglMakeCurrent(eglDisplay, eglEncoderSurface, eglEncoderSurface, eglContext)
 
-        EGL14.eglMakeCurrent(eglDisplay, eglEncoderSurface, eglEncoderSurface, eglContext)
-
-        var viewportWidth = size.width
-        var viewportHeight = size.height
-
-        /** Swap width and height if the camera is rotated on its side. */
+//        var viewportWidth = width
+//        var viewportHeight = height
+//
+//        /** Swap width and height if the camera is rotated on its side. */
 //        if (orientation == 90 || orientation == 270) {
-//            viewportWidth = size.height
-//            viewportHeight = size.width
+//            viewportWidth = height
+//            viewportHeight = width
 //        }
 
-        "--> copyRenderToEncode?? ".e
-//        onDrawFrame(
-//            renderTexId,
-//            renderTexture,
-//            Rect(0, 0, viewportWidth, viewportHeight),
-//            renderToEncodeShaderProgram!!,
-//            false
-//        )
-
+//        copyTexture(renderTexId, renderTexture, Rect(0, 0, viewportWidth, viewportHeight),
+//            renderToEncodeShaderProgram!!, false)
+//
 //        encoder.frameAvailable()
 
+//        mSurfaceTexture?.updateTexImage()
         EGL14.eglSwapBuffers(eglDisplay, eglEncoderSurface)
     }
+
+
+//    private fun copyTexture(texId: Int, texture: SurfaceTexture, viewportRect: Rect,
+//                            shaderProgram: ShaderProgram, outputIsFramebuffer: Boolean) {
+//        GLES30.glClearColor(0.0f, 0.0f, 0.0f, 1.0f)
+//        checkGlError("glClearColor")
+//        GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
+//        checkGlError("glClear")
+//
+//        shaderProgram.useProgram()
+//        GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
+//        checkGlError("glActiveTexture")
+//        GLES30.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, texId)
+//        checkGlError("glBindTexture")
+//
+//        texture.getTransformMatrix(texMatrix)
+//
+//        // HardwareBuffer coordinates are flipped relative to what GLES expects
+//        if (outputIsFramebuffer) {
+//            val flipMatrix = floatArrayOf(
+//                1f, 0f, 0f, 0f,
+//                0f, -1f, 0f, 0f,
+//                0f, 0f, 1f, 0f,
+//                0f, 1f, 0f, 1f
+//            )
+//            android.opengl.Matrix.multiplyMM(texMatrix, 0, flipMatrix, 0, texMatrix.clone(), 0)
+//        }
+//        shaderProgram.setTexMatrix(texMatrix)
+//
+//        shaderProgram.setVertexAttribArray(FULLSCREEN_QUAD)
+//
+//        GLES30.glViewport(viewportRect.left, viewportRect.top, viewportRect.right,
+//            viewportRect.bottom)
+//        checkGlError("glViewport")
+//        GLES30.glDrawArrays(GLES30.GL_TRIANGLE_STRIP, 0, 4)
+//        checkGlError("glDrawArrays")
+//    }
 
     /**
      * Create camera texture
@@ -487,21 +519,19 @@ class MyGLRenderer(
     }
 
     fun actionDown(inputSurface: Surface) {
-//        initEGL()
-
         "--> Renderer actionDown! $inputSurface ${Thread.currentThread().name}".e
-//        val surfaceAttribs = intArrayOf(EGL14.EGL_NONE)
-//        eglEncoderSurface = EGL14.eglCreateWindowSurface(
-//            eglDisplay, eglConfig, inputSurface, surfaceAttribs, 0
-//        )
-//        if (eglEncoderSurface == EGL14.EGL_NO_SURFACE) {
-//            val error = EGL14.eglGetError()
-//            throw RuntimeException(
-//                "Failed to create EGL encoder surface" + ": eglGetError = 0x" + Integer.toHexString(
-//                    error
-//                )
-//            )
-//        }
+        val surfaceAttribs = intArrayOf(EGL14.EGL_NONE)
+        eglEncoderSurface = EGL14.eglCreateWindowSurface(
+            eglDisplay, eglConfig, inputSurface, surfaceAttribs, 0
+        )
+        if (eglEncoderSurface == EGL14.EGL_NO_SURFACE) {
+            val error = EGL14.eglGetError()
+            throw RuntimeException(
+                "Failed to create EGL encoder surface" + ": eglGetError = 0x" + Integer.toHexString(
+                    error
+                )
+            )
+        }
         "--> Renderer actionDown success! $inputSurface ${Thread.currentThread().name}".e
     }
 
@@ -514,5 +544,5 @@ class MyGLRenderer(
         currentlyRecording = false
     }
 
-    fun getRecordTarget(): Surface = cameraSurface
+    fun getRecordTarget(): Surface = previewSurface
 }

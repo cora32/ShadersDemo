@@ -40,9 +40,6 @@ import io.iskopasi.shader_test.utils.camera_utils.EncoderWrapper
 import io.iskopasi.shader_test.utils.camera_utils.cameraManager
 import kotlinx.coroutines.delay
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
@@ -190,7 +187,7 @@ class Camera2Controller(
         return session.device.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
             // Add the preview surface target
             addTarget(renderer.getRecordTarget())
-            addTarget(encoder.getInputSurface())
+//            addTarget(encoder.getInputSurface())
 
             set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(fps, fps))
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -378,7 +375,7 @@ class Camera2Controller(
 //    }
 
     private fun createEncoder(): EncoderWrapper {
-        outputFile = CameraUtils.createFile(context, "mp4")
+        outputFile = context.createFile("mp4")
         val previewSize = CameraUtils.getMaxSizeBack(context)
         "--> previewSize: $previewSize".e
 
@@ -473,7 +470,7 @@ class Camera2Controller(
             session = createCaptureSession(
                 device!!, listOf(
                     renderer.getRecordTarget(),
-                    encoder.getInputSurface()
+//                    encoder.getInputSurface()
                 ), _handler,
                 recordingCompleteOnClose = true
             )
@@ -597,11 +594,6 @@ object CameraUtils {
             .getOutputSizes(SurfaceTexture::class.java)!!
             .first()
 
-
-    fun createFile(context: Context, extension: String): File {
-        val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.US)
-        return File(context.filesDir, "shadertoy_${sdf.format(Date())}.$extension")
-    }
 
     fun createEncoder(
         w: Int,

@@ -43,6 +43,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 val Picture.toBitmap: Bitmap
     get() {
@@ -245,4 +248,9 @@ fun File.play(context: Context) {
         flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
                 Intent.FLAG_ACTIVITY_CLEAR_TOP
     }, null)
+}
+
+fun Context.createFile(extension: String): File {
+    val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.US)
+    return File(this.filesDir, "shadertoy_${sdf.format(Date())}.$extension")
 }

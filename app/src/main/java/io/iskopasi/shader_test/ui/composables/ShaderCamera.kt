@@ -1,7 +1,6 @@
 package io.iskopasi.shader_test.ui.composables
 
 import android.content.Context
-import android.opengl.GLSurfaceView
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.camera.core.CameraSelector
@@ -19,7 +18,8 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import io.iskopasi.shader_test.DrawerController
-import io.iskopasi.shader_test.utils.Camera2Controller
+import io.iskopasi.shader_test.utils.camera_utils.AutoFitSurfaceView
+import io.iskopasi.shader_test.utils.camera_utils.CameraController2
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
@@ -29,21 +29,21 @@ import kotlin.coroutines.suspendCoroutine
 fun CameraView(controller: DrawerController) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val isFront = true
-    var cameraController: Camera2Controller? = null
-    val view = remember {
-        GLSurfaceView(context).apply {
-            cameraController = Camera2Controller(this, isFront, lifecycleOwner)
-        }
-    }
-
-//    var cameraController: CameraController2? = null
+    val isFront = false
+//    var cameraController: Camera2Controller? = null
 //    val view = remember {
-//        AutoFitSurfaceView(context).let { surface ->
-//            cameraController = CameraController2().apply { start(surface) }
-//            surface
+//        GLSurfaceView(context).apply {
+//            cameraController = Camera2Controller(this, isFront, lifecycleOwner)
 //        }
 //    }
+
+    var cameraController: CameraController2? = null
+    val view = remember {
+        AutoFitSurfaceView(context).let { surface ->
+            cameraController = CameraController2(isFront, lifecycleOwner).apply { start(surface) }
+            surface
+        }
+    }
 
     AndroidView(
         factory = { view },

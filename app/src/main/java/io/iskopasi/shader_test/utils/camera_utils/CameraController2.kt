@@ -2,7 +2,6 @@ package io.iskopasi.shader_test.utils.camera_utils
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.Intent
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
@@ -20,26 +19,25 @@ import android.os.HandlerThread
 import android.os.Looper
 import android.view.Surface
 import android.view.SurfaceHolder
-import android.webkit.MimeTypeMap
 import android.widget.Toast
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.core.os.ExecutorCompat
-import io.iskopasi.shader_test.BuildConfig
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import io.iskopasi.shader_test.utils.bg
+import io.iskopasi.shader_test.utils.createFile
 import io.iskopasi.shader_test.utils.e
 import io.iskopasi.shader_test.utils.main
+import io.iskopasi.shader_test.utils.share
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 
-class CameraController2 {
+class CameraController2(val isFront: Boolean, lifecycleOwner: LifecycleOwner) :
+    DefaultLifecycleObserver {
     private var device: CameraDevice? = null
     private val cameraThread = HandlerThread("CameraThread").apply { start() }
     private val cameraHandler = Handler(cameraThread.looper)
@@ -83,10 +81,30 @@ class CameraController2 {
     private val cvRecordingStarted = ConditionVariable(false)
     private val cvRecordingComplete = ConditionVariable(false)
 
-    /** Creates a [File] named with the current date and time */
-    private fun createFile(context: Context, extension: String): File {
-        val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.US)
-        return File(context.filesDir, "shadertoy_${sdf.format(Date())}.$extension")
+    init {
+        lifecycleOwner.lifecycle.addObserver(this)
+    }
+
+    override fun onResume(owner: LifecycleOwner) {
+//        createCameraThread()
+//        if (device != null) {
+//            openCamera()
+//        }
+    }
+
+    override fun onPause(owner: LifecycleOwner) {
+//        closeCamera()
+//
+//        _cameraThread?.quitSafely()
+//        try {
+//            _cameraThread?.join()
+//            _handler?.looper?.quitSafely()
+//        } catch (e: InterruptedException) {
+//            e.printStackTrace()
+//        } finally {
+////            _cameraThread = null
+////            _handler = null
+//        }
     }
 
     @SuppressLint("MissingPermission")
@@ -287,7 +305,10 @@ class CameraController2 {
             ) = Unit
 
             override fun surfaceCreated(holder: SurfaceHolder) {
-                val cameraId = getCameraId(context, CameraMetadata.LENS_FACING_FRONT)
+                val cameraId = getCameraId(
+                    context,
+                    if (isFront) CameraMetadata.LENS_FACING_FRONT else CameraMetadata.LENS_FACING_BACK
+                )
 
                 characteristics = getCharacteristics(context, cameraId)
 
@@ -301,7 +322,7 @@ class CameraController2 {
                     "Selected preview size: $previewSize".e
                     view.setAspectRatio(previewSize.width, previewSize.height)
 
-                    outputFile = createFile(context, ".mp4")
+                    outputFile = context.createFile("mp4")
                     encoder = createEncoder(
                         previewSize.width,
                         previewSize.height,
@@ -427,16 +448,17 @@ class CameraController2 {
                 )
 
                 if (outputFile.exists()) {
+                    outputFile.share(context)
                     // Launch external activity via intent to play video recorded using our provider
-                    ContextCompat.startActivity(context, Intent().apply {
-                        action = Intent.ACTION_VIEW
-                        type = MimeTypeMap.getSingleton()
-                            .getMimeTypeFromExtension(outputFile.extension)
-                        val authority = "${BuildConfig.APPLICATION_ID}.provider"
-                        data = FileProvider.getUriForFile(context, authority, outputFile)
-                        flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                                Intent.FLAG_ACTIVITY_CLEAR_TOP
-                    }, null)
+//                    ContextCompat.startActivity(context, Intent().apply {
+//                        action = Intent.ACTION_VIEW
+//                        type = MimeTypeMap.getSingleton()
+//                            .getMimeTypeFromExtension(outputFile.extension)
+//                        val authority = "${BuildConfig.APPLICATION_ID}.provider"
+//                        data = FileProvider.getUriForFile(context, authority, outputFile)
+//                        flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+//                                Intent.FLAG_ACTIVITY_CLEAR_TOP
+//                    }, null)
                 } else {
                     // TODO:
                     //  1. Move the callback to ACTION_DOWN, activating it on the second press

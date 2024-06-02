@@ -21,7 +21,6 @@ import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CaptureRequest
 import android.opengl.EGL14
 import android.opengl.GLES30
-import android.opengl.Matrix
 import android.os.HandlerThread
 import android.util.Log
 import android.util.Size
@@ -162,7 +161,6 @@ class HardwarePipeline(
 class ShaderProgram(
     val id: Int,
     private val vPositionLoc: Int,
-    private val textureCoordHandle: Int,
     private val texMatrixLoc: Int,
     private var uMVPMatrixHandle: Int,
     private val iTimeHandle: Int,
@@ -172,7 +170,7 @@ class ShaderProgram(
     //Handle to vertex attributes
     private val mvpMatrix = FloatArray(16)
     private var timeProgress = 0f
-    private val rotationAngle = 90f
+    private val rotationAngle = 0f
     private var takeScreenshot = false
 
     private fun floatBufferFromArray(array: FloatArray): FloatBuffer {
@@ -198,20 +196,13 @@ class ShaderProgram(
         )
         HardwarePipeline.checkGlError("glVertexAttribPointer")
 
-//        GLES30.glEnableVertexAttribArray(textureCoordHandle)
-//        HardwarePipeline.checkGlError("glEnableVertexAttribArray")
-//        GLES30.glVertexAttribPointer(textureCoordHandle, 2, GLES30.GL_FLOAT, false, 8, floatBufferFromArray(
-//            TEXTURE_COORDS_ORIG
-//        ))
-//        HardwarePipeline.checkGlError("glVertexAttribPointer")
-
         // Rotate front camera
-        Matrix.setIdentityM(mvpMatrix, 0)
-        HardwarePipeline.checkGlError("setIdentityM")
-        Matrix.rotateM(mvpMatrix, 0, rotationAngle, 0.0f, 0.0f, 1.0f)
-        HardwarePipeline.checkGlError("rotateM")
-        GLES30.glUniformMatrix4fv(uMVPMatrixHandle, 1, false, mvpMatrix, 0)
-        HardwarePipeline.checkGlError("uMVPMatrixHandle")
+//        Matrix.setIdentityM(mvpMatrix, 0)
+//        HardwarePipeline.checkGlError("setIdentityM")
+//        Matrix.rotateM(mvpMatrix, 0, rotationAngle, 0.0f, 0.0f, 1.0f)
+//        HardwarePipeline.checkGlError("rotateM")
+//        GLES30.glUniformMatrix4fv(uMVPMatrixHandle, 1, false, mvpMatrix, 0)
+//        HardwarePipeline.checkGlError("uMVPMatrixHandle")
 
         GLES30.glUniform1f(iTimeHandle, timeProgress++)
         HardwarePipeline.checkGlError("iTimeHandle")

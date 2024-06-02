@@ -14,7 +14,6 @@ void main() {
     gl_Position = vPosition;
     vec4 texCoord = vec4((vPosition.xy + vec2(1.0, 1.0)) / 2.0, 0.0, 1.0);
     v_textureCoord = (texMatrix * texCoord).xy;
-//    v_textureCoord = a_textureCoord;
 }
 """
 
@@ -79,7 +78,6 @@ varying vec2 v_textureCoord;
 uniform samplerExternalOES u_texture;
 void main() {
     gl_FragColor = texture2D(u_texture, v_textureCoord);
-//    gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
 }
 """
 
