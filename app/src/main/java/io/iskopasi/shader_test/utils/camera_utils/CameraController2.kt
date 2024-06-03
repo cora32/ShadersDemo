@@ -18,8 +18,12 @@ import android.os.ConditionVariable
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
+import android.os.PowerManager
+import android.util.Size
 import android.view.Surface
 import android.view.SurfaceHolder
+import android.view.SurfaceView
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.os.ExecutorCompat
@@ -50,6 +54,8 @@ class CameraController2(val isFront: Boolean, lifecycleOwner: LifecycleOwner) :
     @Volatile
     private var recordingComplete = false
     private var recordingStartMillis = 0L
+    private var width = 0
+    private var height = 0
 
     private val RECORDER_VIDEO_BITRATE: Int = 10_000_000
     private val MIN_REQUIRED_RECORDING_TIME_MILLIS: Long = 1000L
@@ -92,10 +98,12 @@ class CameraController2(val isFront: Boolean, lifecycleOwner: LifecycleOwner) :
     }
 
     override fun onPause(owner: LifecycleOwner) {
-        pipeline.cleanup()
+        "--> onPause".e
+//        pipeline.cleanup()
     }
 
     override fun onStop(owner: LifecycleOwner) {
+        "--> onStop".e
         super.onStop(owner)
 
         try {
@@ -239,13 +247,17 @@ class CameraController2(val isFront: Boolean, lifecycleOwner: LifecycleOwner) :
                     return
                 }
 
-                recordingComplete = true
-                pipeline.stopRecording()
-                cvRecordingComplete.open()
+                stopRecording()
             }
         }
 
         setupSessionWithDynamicRangeProfile(device, targets, handler, stateCallback)
+    }
+
+    private fun stopRecording() {
+        recordingComplete = true
+        pipeline.stopRecording()
+        cvRecordingComplete.open()
     }
 
     private fun initializeCamera(context: Context, cameraId: String) = main {
@@ -270,9 +282,8 @@ class CameraController2(val isFront: Boolean, lifecycleOwner: LifecycleOwner) :
 
     fun start(
         view: AutoFitSurfaceView
-    ) {
-        val context = view.context
-
+    ): CameraController2 {
+        val context = view.context.applicationContext
         view.holder.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceDestroyed(holder: SurfaceHolder) {
                 pipeline.destroyWindowSurface()
@@ -303,44 +314,78 @@ class CameraController2(val isFront: Boolean, lifecycleOwner: LifecycleOwner) :
                     "Selected preview size: $previewSize".e
                     view.setAspectRatio(previewSize.width, previewSize.height)
 
-                    outputFile = context.createFile("mp4")
-                    var width = 0
-                    var height = 0
                     CamcorderProfile.get(CamcorderProfile.QUALITY_1080P).let { profile ->
                         width = profile.videoFrameWidth
                         height = profile.videoFrameHeight
                     }
 
-                    encoder = EncoderWrapper(
-                        width,
-                        height,
-                        RECORDER_VIDEO_BITRATE,
-                        fps,
-                        dynamicRange,
-                        orientation,
-                        outputFile,
-                        useMediaRecorder = true,
-                        videoCodec,
-                        context.applicationContext
-                    )
-                    pipeline = HardwarePipeline(
-                        width,
-                        height,
-                        fps,
-                        false,
-                        2,
-                        dynamicRange,
-                        characteristics,
-                        encoder,
-                        view
-                    )
-                    pipeline.setPreviewSize(previewSize)
-                    pipeline.createResources(holder.surface)
-
+                    initializePipeline(context, previewSize, view, surface = holder.surface)
                     initializeCamera(context, cameraId)
                 }
             }
         })
+
+        return this
+    }
+
+    private fun initializePipeline(
+        context: Context,
+        previewSize: Size,
+        view: SurfaceView,
+        surface: Surface
+    ) {
+        encoder = createEncoder(
+            width,
+            height,
+            RECORDER_VIDEO_BITRATE,
+            fps,
+            dynamicRange,
+            orientation,
+            useMediaRecorder = true,
+            videoCodec,
+            context.applicationContext
+        )
+        pipeline = HardwarePipeline(
+            width,
+            height,
+            fps,
+            false,
+            2,
+            dynamicRange,
+            characteristics,
+            encoder,
+            view
+        )
+        pipeline.setPreviewSize(previewSize)
+        pipeline.createResources(surface)
+    }
+
+    private fun createEncoder(
+        width: Int,
+        height: Int,
+        recorderVideoBitrate: Int,
+        fps: Int,
+        dynamicRange: Long,
+        orientation: Int,
+        useMediaRecorder: Boolean,
+        videoCodec: Int,
+        context: Context
+    ): EncoderWrapper {
+        outputFile = context.applicationContext.createFile("mp4")
+        "--> Created output file: ${outputFile.absoluteFile}".e
+
+        return EncoderWrapper(
+            width,
+            height,
+            recorderVideoBitrate,
+            fps,
+            dynamicRange,
+            orientation,
+            outputFile,
+            useMediaRecorder = useMediaRecorder,
+            videoCodec,
+            context.applicationContext
+        )
     }
 
     /**
@@ -352,6 +397,7 @@ class CameraController2(val isFront: Boolean, lifecycleOwner: LifecycleOwner) :
 
     fun startVideoRec(context: Context) = bg {
         if (!recordingStarted) {
+            "--> Starting recording".e
             recordingStartMillis = System.currentTimeMillis()
             // Prevents screen rotation during the video recording
 //            requireActivity().requestedOrientation =
@@ -365,22 +411,18 @@ class CameraController2(val isFront: Boolean, lifecycleOwner: LifecycleOwner) :
             cvRecordingStarted.open()
             pipeline.startRecording()
         } else {
+            "--> Stopping recording".e
             cvRecordingStarted.block()
+            "--> Stopping recording 1".e
 
             /* Wait for at least one frame to process so we don't have an empty video */
             encoder.waitForFirstFrame()
+            "--> Stopping recording 2".e
 
-            session.stopRepeating()
-            session.close()
+//            session.stopRepeating()
+//            session.close()
 
-            pipeline.clearFrameListener()
-
-            /* Wait until the session signals onReady */
-            cvRecordingComplete.block()
-
-            // Unlocks screen rotation after recording finished
-//            requireActivity().requestedOrientation =
-//                ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+//            pipeline.clearFrameListener()
 
             // Requires recording of at least MIN_REQUIRED_RECORDING_TIME_MILLIS
             val elapsedTimeMillis = System.currentTimeMillis() - recordingStartMillis
@@ -388,8 +430,19 @@ class CameraController2(val isFront: Boolean, lifecycleOwner: LifecycleOwner) :
                 delay(MIN_REQUIRED_RECORDING_TIME_MILLIS - elapsedTimeMillis)
             }
 
-            pipeline.cleanup()
+            stopRecording()
 
+            /* Wait until the session signals onReady */
+            cvRecordingComplete.block()
+            "--> Stopping recording 3".e
+
+            // Unlocks screen rotation after recording finished
+//            requireActivity().requestedOrientation =
+//                ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+
+//            pipeline.cleanup()
+
+            recordingStarted = false
             "--> Recording stopped. Output file: $outputFile".e
             if (encoder.shutdown()) {
                 // Broadcasts the media file to the rest of the system
@@ -420,9 +473,16 @@ class CameraController2(val isFront: Boolean, lifecycleOwner: LifecycleOwner) :
                     ).show()
                 }
             }
+
+            outputFile = context.applicationContext.createFile("mp4")
+            encoder.setOutputFile(outputFile)
         }
     }
 }
 
 val Context.cameraManager: CameraManager?
     get() = ContextCompat.getSystemService(this, CameraManager::class.java)
+val Context.powerManager: PowerManager?
+    get() = ContextCompat.getSystemService(this, PowerManager::class.java)
+val Context.windowManager: WindowManager?
+    get() = ContextCompat.getSystemService(this, WindowManager::class.java)

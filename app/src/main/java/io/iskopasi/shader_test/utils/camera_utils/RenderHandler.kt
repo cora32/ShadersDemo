@@ -158,6 +158,7 @@ class RenderHandler(
 
     fun stopRecording() {
         currentlyRecording = false
+        "--> stopRecording called; currentlyRecording = $currentlyRecording".e
     }
 
     fun createRecordRequest(
@@ -821,7 +822,7 @@ class RenderHandler(
         var viewportHeight = height
 
         /** Swap width and height if the camera is rotated on its side. */
-        "--> $orientation".e
+        "--> Recording: $orientation".e
         if (orientation == 90 || orientation == 270) {
             viewportWidth = height
             viewportHeight = width
@@ -864,16 +865,18 @@ class RenderHandler(
 
     private fun actionDown(encoderSurface: Surface) {
         val surfaceAttribs = intArrayOf(EGL14.EGL_NONE)
-        eglEncoderSurface = EGL14.eglCreateWindowSurface(
-            eglDisplay, eglConfig, encoderSurface, surfaceAttribs, 0
-        )
-        if (eglEncoderSurface == EGL14.EGL_NO_SURFACE) {
-            val error = EGL14.eglGetError()
-            throw RuntimeException(
-                "Failed to create EGL encoder surface" + ": eglGetError = 0x" + Integer.toHexString(
-                    error
-                )
+        if (eglEncoderSurface == null || eglEncoderSurface == EGL14.EGL_NO_SURFACE) {
+            eglEncoderSurface = EGL14.eglCreateWindowSurface(
+                eglDisplay, eglConfig, encoderSurface, surfaceAttribs, 0
             )
+            if (eglEncoderSurface == EGL14.EGL_NO_SURFACE) {
+                val error = EGL14.eglGetError()
+                throw RuntimeException(
+                    "Failed to create EGL encoder surface" + ": eglGetError = 0x" + Integer.toHexString(
+                        error
+                    )
+                )
+            }
         }
     }
 
@@ -887,6 +890,7 @@ class RenderHandler(
     }
 
     private fun cleanup() {
+        "--> RenderHandler cleanup()".e
         EGL14.eglDestroySurface(eglDisplay, eglEncoderSurface)
         eglEncoderSurface = EGL14.EGL_NO_SURFACE
         EGL14.eglDestroySurface(eglDisplay, eglRenderSurface)

@@ -45,10 +45,10 @@ class EncoderWrapper(
     private val frameRate: Int,
     private val dynamicRange: Long,
     private val orientationHint: Int,
-    private val outputFile: File,
+    private var outputFile: File,
     private val useMediaRecorder: Boolean,
     private val videoCodec: Int,
-    context: Context
+    val context: Context
 ) {
     companion object {
         val TAG = "EncoderWrapper"
@@ -85,6 +85,16 @@ class EncoderWrapper(
         }
     }
 
+    fun setOutputFile(file: File) {
+        outputFile = file
+
+        if (useMediaRecorder) {
+            mMediaRecorder = createRecorder(context, mInputSurface)
+        } else {
+            // TODO: restart `mEncoderThread` with new outputFile
+        }
+    }
+
     private val mEncoder: MediaCodec? by lazy {
         if (useMediaRecorder) {
             null
@@ -98,9 +108,6 @@ class EncoderWrapper(
             // Get a persistent Surface from MediaCodec, don't forget to release when done
             val surface = MediaCodec.createPersistentInputSurface()
 
-            // Prepare and release a dummy MediaRecorder with our new surface
-            // Required to allocate an appropriately sized buffer before passing the Surface as the
-            //  output target to the capture session
             createRecorder(context, surface).apply {
                 prepare()
                 release()
@@ -112,7 +119,7 @@ class EncoderWrapper(
         }
     }
 
-    private var mMediaRecorder: MediaRecorder? = null
+    private lateinit var mMediaRecorder: MediaRecorder
 
     private fun createRecorder(context: Context, surface: Surface): MediaRecorder {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -167,29 +174,27 @@ class EncoderWrapper(
             mMediaRecorder = createRecorder(context, mInputSurface)
         } else {
             val codecProfile = when (videoCodec) {
-                VIDEO_CODEC_ID_HEVC -> when {
-                    dynamicRange == DynamicRangeProfiles.HLG10 ->
+                VIDEO_CODEC_ID_HEVC -> when (dynamicRange) {
+                    DynamicRangeProfiles.HLG10 ->
                         MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10
 
-                    dynamicRange == DynamicRangeProfiles.HDR10 ->
+                    DynamicRangeProfiles.HDR10 ->
                         MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10HDR10
 
-                    dynamicRange == DynamicRangeProfiles.HDR10_PLUS ->
+                    DynamicRangeProfiles.HDR10_PLUS ->
                         MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10HDR10Plus
-
                     else -> -1
                 }
 
-                VIDEO_CODEC_ID_AV1 -> when {
-                    dynamicRange == DynamicRangeProfiles.HLG10 ->
+                VIDEO_CODEC_ID_AV1 -> when (dynamicRange) {
+                    DynamicRangeProfiles.HLG10 ->
                         MediaCodecInfo.CodecProfileLevel.AV1ProfileMain10
 
-                    dynamicRange == DynamicRangeProfiles.HDR10 ->
+                    DynamicRangeProfiles.HDR10 ->
                         MediaCodecInfo.CodecProfileLevel.AV1ProfileMain10HDR10
 
-                    dynamicRange == DynamicRangeProfiles.HDR10_PLUS ->
+                    DynamicRangeProfiles.HDR10_PLUS ->
                         MediaCodecInfo.CodecProfileLevel.AV1ProfileMain10HDR10Plus
-
                     else -> -1
                 }
 
@@ -250,7 +255,7 @@ class EncoderWrapper(
 
     fun start() {
         if (useMediaRecorder) {
-            mMediaRecorder!!.apply {
+            mMediaRecorder.apply {
                 prepare()
                 start()
             }
@@ -274,7 +279,7 @@ class EncoderWrapper(
 
         if (useMediaRecorder) {
             try {
-                mMediaRecorder!!.stop()
+                mMediaRecorder.stop()
             } catch (e: RuntimeException) {
                 // https://developer.android.com/reference/android/media/MediaRecorder.html#stop()
                 // RuntimeException will be thrown if no valid audio/video data has been received
@@ -285,7 +290,8 @@ class EncoderWrapper(
                     TAG,
                     "--> RuntimeException: stop() is called immediately after start() $outputFile"
                 )
-                //noinspection ResultOfMethodCallIgnored
+                e.printStackTrace()
+
                 outputFile.delete()
                 return false
             }
@@ -347,7 +353,7 @@ class EncoderWrapper(
         val mEncoder = mediaCodec
         var mEncodedFormat: MediaFormat? = null
         val mBufferInfo = MediaCodec.BufferInfo()
-        val mMuxer = MediaMuxer(outputFile.getPath(), MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+        val mMuxer = MediaMuxer(outputFile.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
         val mOrientationHint = orientationHint
         var mVideoTrack: Int = -1
 
@@ -456,13 +462,11 @@ class EncoderWrapper(
                     )
                     // let's ignore it
                 } else {
-                    var encodedData: ByteBuffer? = mEncoder.getOutputBuffer(encoderStatus)
-                    if (encodedData == null) {
-                        throw RuntimeException(
+                    val encodedData: ByteBuffer = mEncoder.getOutputBuffer(encoderStatus)
+                        ?: throw RuntimeException(
                             "encoderOutputBuffer " + encoderStatus +
                                     " was null"
-                        );
-                    }
+                        )
 
                     if ((mBufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
                         // The codec config data was pulled out when we got the

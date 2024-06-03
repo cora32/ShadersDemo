@@ -31,27 +31,20 @@ highp float rand2(vec2 co)
 }
 
 bool isRed(vec4 value) {
-    return value.r > 0.9
-    && value.g < 0.8
-    && value.b < 0.8;
+    return value.r > 0.8;
 }
 
 bool isGreen(vec4 value) {
-    return value.r < 0.8
-    && value.g > 0.9
-    && value.b < 0.8;
+    return value.g > 0.8;
 }
 
 bool isBlue(vec4 value) {
-    return value.r < 0.8
-    && value.g < 0.8
-    && value.b > 0.9;
+    return value.b > 0.8;
 }
 
 bool isYellow(vec4 value) {
-    return value.r > 0.9
-    && value.g > 0.9
-    && value.b < 0.8;
+    return value.r > 0.8
+    && value.g > 0.8;
 }
 
 void main() {
@@ -136,7 +129,7 @@ void main() {
         }
 
         if (isRed) {
-            value.r += 0.5;
+            value.r += 0.8;
         }
         if (isGreen) {
             value.g += 0.5;

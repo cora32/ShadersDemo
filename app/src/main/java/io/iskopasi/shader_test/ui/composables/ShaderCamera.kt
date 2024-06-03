@@ -27,7 +27,7 @@ import kotlin.coroutines.suspendCoroutine
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun CameraView(controller: DrawerController) {
-    val context = LocalContext.current
+    val context = LocalContext.current.applicationContext
     val lifecycleOwner = LocalLifecycleOwner.current
     val isFront = false
 //    var cameraController: Camera2Controller? = null
@@ -39,9 +39,8 @@ fun CameraView(controller: DrawerController) {
 
     var cameraController: CameraController2? = null
     val view = remember {
-        AutoFitSurfaceView(context).let { surface ->
-            cameraController = CameraController2(isFront, lifecycleOwner).apply { start(surface) }
-            surface
+        AutoFitSurfaceView(context).also { view ->
+            cameraController = CameraController2(isFront, lifecycleOwner).start(view)
         }
     }
 
