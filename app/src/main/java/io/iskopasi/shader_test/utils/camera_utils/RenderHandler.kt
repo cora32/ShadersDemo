@@ -164,6 +164,7 @@ class RenderHandler(
     fun createRecordRequest(
         session: CameraCaptureSession, previewStabilization: Boolean
     ): CaptureRequest {
+        "--> Creating createRecordRequest".e
         cvResourcesCreated.block()
 
         // Capture request holds references to target surfaces
@@ -172,6 +173,11 @@ class RenderHandler(
             addTarget(cameraSurface)
 
             set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(fps, fps))
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+//                set(CaptureRequest.CONTROL_ZOOM_RATIO, 0.6f)
+                set(CaptureRequest.CONTROL_ZOOM_RATIO, 1f)
+            }
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 set(
                     CaptureRequest.SENSOR_PIXEL_MODE,
@@ -200,6 +206,8 @@ class RenderHandler(
 
     /** Initialize the EGL display, context, and render surface */
     private fun initEGL() {
+        "--> initEGL in ${Thread.currentThread().name}".e
+
         eglDisplay = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
         if (eglDisplay == EGL14.EGL_NO_DISPLAY) {
             throw RuntimeException("unable to get EGL14 display")
@@ -472,67 +480,33 @@ class RenderHandler(
 
             vertexShader = createShader(GLES30.GL_VERTEX_SHADER, TRANSFORM_HDR_VSHADER)
 
-            cameraToRenderFragmentShader = when (filterOn) {
-                false -> createShader(
-                    GLES30.GL_FRAGMENT_SHADER, YUV_TO_RGB_PASSTHROUGH_HDR_FSHADER
-                )
+            cameraToRenderShaderProgram = when (filterOn) {
+                false -> YUV_TO_RGB_PASSTHROUGH_HDR_FSHADER.toShaderProgram()
 
-                true -> createShader(
-                    GLES30.GL_FRAGMENT_SHADER, YUV_TO_RGB_PORTRAIT_HDR_FSHADER
-                )
+                true -> YUV_TO_RGB_PORTRAIT_HDR_FSHADER.toShaderProgram()
             }
-            cameraToRenderShaderProgram = createShaderProgram(cameraToRenderFragmentShader)
-
-            renderToPreviewFragmentShader = when (transfer) {
-                PQ_ID -> createShader(
-                    GLES30.GL_FRAGMENT_SHADER, HLG_TO_PQ_HDR_FSHADER
-                )
-
-                LINEAR_ID -> createShader(
-                    GLES30.GL_FRAGMENT_SHADER, HLG_TO_LINEAR_HDR_FSHADER
-                )
-
-                HLG_ID, HLG_WORKAROUND_ID -> createShader(
-                    GLES30.GL_FRAGMENT_SHADER, PASSTHROUGH_HDR_FSHADER
-                )
-
-                else -> throw RuntimeException("Unexpected transfer " + transfer)
+            renderToPreviewShaderProgram = when (transfer) {
+                PQ_ID -> HLG_TO_PQ_HDR_FSHADER.toShaderProgram()
+                LINEAR_ID -> HLG_TO_LINEAR_HDR_FSHADER.toShaderProgram()
+                HLG_ID, HLG_WORKAROUND_ID -> PASSTHROUGH_HDR_FSHADER.toShaderProgram()
+                else -> throw RuntimeException("Unexpected transfer $transfer")
             }
-
-            renderToPreviewShaderProgram = createShaderProgram(
-                renderToPreviewFragmentShader
-            )
-
-            renderToEncodeFragmentShader = createShader(
-                GLES30.GL_FRAGMENT_SHADER, PASSTHROUGH_HDR_FSHADER
-            )
-            renderToEncodeShaderProgram = createShaderProgram(renderToEncodeFragmentShader)
+            renderToEncodeShaderProgram = PASSTHROUGH_HDR_FSHADER.toShaderProgram()
         } else {
             vertexShader = createShader(GLES30.GL_VERTEX_SHADER, TRANSFORM_VSHADER)
-
-            val fragmentShaderCode = viewFinder.context.loadShader("glitch_shader.glsl")
-            val customFragmentShader = createShader(
-                GLES30.GL_FRAGMENT_SHADER, fragmentShaderCode
-            )
-            val customShaderProgramForRender = createShaderProgram(customFragmentShader)
-
-            val fragmentShaderCodeForRecord = viewFinder.context.loadShader("glitch_shader.glsl")
-            val customFragmentShaderForRecord = createShader(
-                GLES30.GL_FRAGMENT_SHADER, fragmentShaderCodeForRecord
-            )
-            val customShaderProgramForRecord = createShaderProgram(customFragmentShaderForRecord)
-
-            val passthroughFragmentShader = createShader(
-                GLES30.GL_FRAGMENT_SHADER, PASSTHROUGH_FSHADER
-            )
-            val passthroughShaderProgram = createShaderProgram(passthroughFragmentShader)
-
-            cameraToRenderShaderProgram = passthroughShaderProgram
-            renderToPreviewShaderProgram = customShaderProgramForRender
-            renderToEncodeShaderProgram = customShaderProgramForRecord
-//            renderToEncodeShaderProgram = customShaderProgram
+            cameraToRenderShaderProgram = PASSTHROUGH_FSHADER.toShaderProgram()
+            renderToPreviewShaderProgram =
+                viewFinder.context.loadShader("glitch_shader.glsl").toShaderProgram()
+            renderToEncodeShaderProgram =
+                viewFinder.context.loadShader("glitch_shader.glsl").toShaderProgram()
         }
     }
+
+    private fun String.toShaderProgram() = createShaderProgram(toShader())
+
+    private fun String.toShader(): Int = createShader(
+        GLES30.GL_FRAGMENT_SHADER, this
+    )
 
     /** Creates the shader program used to copy data from one texture to another */
     private fun createShaderProgram(fragmentShader: Int): ShaderProgram {
@@ -642,6 +616,7 @@ class RenderHandler(
     }
 
     private fun destroyWindowSurface() {
+        "--> destroyWindowSurface".e
         if (eglWindowSurface != EGL14.EGL_NO_SURFACE && eglDisplay != EGL14.EGL_NO_DISPLAY) {
             EGL14.eglDestroySurface(eglDisplay, eglWindowSurface)
         }
@@ -812,7 +787,6 @@ class RenderHandler(
             GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0);
             androidx.opengl.EGLExt.eglDestroyImageKHR(eglDisplay, eglImage)
         }
-
     }
 
     private fun copyRenderToEncode() {
@@ -822,7 +796,7 @@ class RenderHandler(
         var viewportHeight = height
 
         /** Swap width and height if the camera is rotated on its side. */
-        "--> Recording: $orientation".e
+        "--> Recording: $orientation in ${Thread.currentThread()}".e
         if (orientation == 90 || orientation == 270) {
             viewportWidth = height
             viewportHeight = width
@@ -866,6 +840,7 @@ class RenderHandler(
     private fun actionDown(encoderSurface: Surface) {
         val surfaceAttribs = intArrayOf(EGL14.EGL_NONE)
         if (eglEncoderSurface == null || eglEncoderSurface == EGL14.EGL_NO_SURFACE) {
+            "--> Creating new eglEncoderSurface in ${Thread.currentThread()}".e
             eglEncoderSurface = EGL14.eglCreateWindowSurface(
                 eglDisplay, eglConfig, encoderSurface, surfaceAttribs, 0
             )
@@ -895,8 +870,18 @@ class RenderHandler(
         eglEncoderSurface = EGL14.EGL_NO_SURFACE
         EGL14.eglDestroySurface(eglDisplay, eglRenderSurface)
         eglRenderSurface = EGL14.EGL_NO_SURFACE
+        EGL14.eglDestroySurface(eglDisplay, eglWindowSurface)
 
         cameraTexture.release()
+        renderTexture.release()
+
+        if (cameraTexId > 0) {
+            destroyTexId(cameraTexId)
+        }
+
+        if (renderTexId > 0) {
+            destroyTexId(renderTexId)
+        }
 
         if (windowTexId > 0) {
             destroyTexId(windowTexId)

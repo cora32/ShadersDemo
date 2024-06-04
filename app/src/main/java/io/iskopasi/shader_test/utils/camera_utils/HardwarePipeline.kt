@@ -26,6 +26,7 @@ import android.util.Log
 import android.util.Size
 import android.view.Surface
 import android.view.SurfaceView
+import io.iskopasi.shader_test.utils.bg
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
@@ -46,7 +47,7 @@ class HardwarePipeline(
     width, height, fps, filterOn, dynamicRange, characteristics, encoder, viewFinder
 ) {
     private val renderThread: HandlerThread by lazy {
-        val renderThread = HandlerThread("Camera2Video.RenderThread")
+        val renderThread = HandlerThread("Camera2Video.RenderThread ${Random.nextInt()}")
         renderThread.start()
         renderThread
     }
@@ -63,6 +64,16 @@ class HardwarePipeline(
         encoder,
         viewFinder
     )
+
+    private fun stopThread() {
+        renderThread.quitSafely()
+        try {
+            renderThread.join()
+            renderThread.looper?.quitSafely()
+        } catch (e: InterruptedException) {
+            e.printStackTrace()
+        }
+    }
 
     override fun createRecordRequest(
         session: CameraCaptureSession, previewStabilization: Boolean
@@ -130,7 +141,10 @@ class HardwarePipeline(
                 RenderHandler.MSG_CLEANUP
             )
         )
-        renderHandler.waitCleanup()
+        bg {
+            renderHandler.waitCleanup()
+            stopThread()
+        }
     }
 
 

@@ -627,8 +627,55 @@ object CameraUtils {
             outputFile,
             useMediaRecorder,
             videoCodec,
-            context.applicationContext
+            context.applicationContext,
+            0,
+            0
         )
     }
 
+}
+
+fun Context.getCameraInfo() {
+    cameraManager?.let { cameraMgr ->
+        cameraMgr.cameraIdList.forEach { logical ->
+
+            val characteristics = cameraMgr.getCameraCharacteristics(logical)
+            val capabilities =
+                characteristics.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
+            val fps_ranges =
+                characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
+            "--> logical cameraId: $logical\n ${capabilities} $fps_ranges".e
+
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                "--> characteristics.physicalCameraIds: ${characteristics.physicalCameraIds}".e
+                "--> characteristics.getAvailablePhysicalCameraRequestKeys: ${characteristics.getAvailablePhysicalCameraRequestKeys()}".e
+                characteristics.physicalCameraIds.forEach { physical ->
+                    "--> physical cameraId: $physical".e
+                }
+                capabilities?.forEach { capability ->
+                    "--> capabilities: $capability".e
+                }
+                val multipleStreamConfigurationMap =
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        characteristics.get(CameraCharacteristics.SCALER_MULTI_RESOLUTION_STREAM_CONFIGURATION_MAP)
+                    } else {
+                        TODO("VERSION.SDK_INT < S")
+                    }
+                "--> multipleStreamConfigurationMap: $multipleStreamConfigurationMap".e
+                val input = multipleStreamConfigurationMap?.inputFormats?.toList().toString()
+                "--> input: $input".e
+                val output = multipleStreamConfigurationMap?.outputFormats?.toList().toString()
+                "--> output: $output".e
+
+                val tempMap =
+                    characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+                val isoRange =
+                    characteristics.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)
+
+                val s1 = tempMap?.getOutputSizes(ImageFormat.JPEG)
+                "--> tempMap: ${s1?.toList()} ${isoRange?.lower} ${isoRange?.upper}".e
+            }
+        }
+    }
 }

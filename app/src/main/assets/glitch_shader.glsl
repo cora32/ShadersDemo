@@ -95,7 +95,7 @@ void main() {
                 value += texture2D(u_texture, coord) * float(edge[x][y]);
             }
         }
-        value /= 5.0;
+        value /= 4.0;
         value.a = 1.0;
 
         // Removing brightness
@@ -129,17 +129,17 @@ void main() {
         }
 
         if (isRed) {
-            value.r += 0.8;
+            value.r += 0.4;
         }
         if (isGreen) {
-            value.g += 0.5;
+            value.g += 0.7;
         }
         if (isBlue) {
             value.b += 0.5;
         }
         if (isYellow) {
-            value.r += 0.5;
-            value.g += 0.5;
+            value.r += 0.3;
+            value.g += 0.3;
         }
 
         //        value = texture2D(u_texture, v_textureCoord);

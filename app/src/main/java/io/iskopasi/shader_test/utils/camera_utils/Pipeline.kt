@@ -26,12 +26,12 @@ import android.view.SurfaceView
 abstract class Pipeline(
     protected val width: Int,
     protected val height: Int,
-    protected val fps: Int,
-    protected val filterOn: Boolean,
-    protected val dynamicRange: Long,
-    protected val characteristics: CameraCharacteristics,
-    protected val encoder: EncoderWrapper,
-    protected val viewFinder: SurfaceView
+    fps: Int,
+    filterOn: Boolean,
+    dynamicRange: Long,
+    characteristics: CameraCharacteristics,
+    encoder: EncoderWrapper,
+    viewFinder: SurfaceView
 ) {
     open fun createPreviewRequest(
         session: CameraCaptureSession,

@@ -19,7 +19,6 @@ package io.iskopasi.shader_test.utils.camera_utils
 
 import android.content.Context
 import android.hardware.camera2.params.DynamicRangeProfiles
-import android.media.CamcorderProfile
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
@@ -31,6 +30,7 @@ import android.os.Looper
 import android.os.Message
 import android.util.Log
 import android.view.Surface
+import io.iskopasi.shader_test.utils.e
 import java.io.File
 import java.lang.ref.WeakReference
 import java.nio.ByteBuffer
@@ -48,7 +48,9 @@ class EncoderWrapper(
     private var outputFile: File,
     private val useMediaRecorder: Boolean,
     private val videoCodec: Int,
-    val context: Context
+    private val context: Context,
+    private val audioBitRate: Int,
+    private val audioSampleRate: Int
 ) {
     companion object {
         val TAG = "EncoderWrapper"
@@ -104,6 +106,7 @@ class EncoderWrapper(
     }
 
     private val mInputSurface: Surface by lazy {
+        "--> Creating new mInputSurface".e
         if (useMediaRecorder) {
             // Get a persistent Surface from MediaCodec, don't forget to release when done
             val surface = MediaCodec.createPersistentInputSurface()
@@ -122,6 +125,7 @@ class EncoderWrapper(
     private lateinit var mMediaRecorder: MediaRecorder
 
     private fun createRecorder(context: Context, surface: Surface): MediaRecorder {
+        "--> Creating new MediaRecorder".e
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             MediaRecorder(context)
         } else {
@@ -147,20 +151,15 @@ class EncoderWrapper(
             setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
             setOutputFile(outputFile.absolutePath)
 
-            CamcorderProfile.get(CamcorderProfile.QUALITY_1080P).let { profile ->
-                setVideoFrameRate(profile.videoFrameRate)
-
-                if (isHardware && isRotated) {
-                    setVideoSize(height, width)
-                } else {
-                    setVideoSize(width, height)
-                }
-
-                setVideoEncodingBitRate(profile.videoBitRate)
-                setAudioEncodingBitRate(profile.audioBitRate)
-                setAudioSamplingRate(profile.audioSampleRate)
+            setVideoFrameRate(frameRate)
+            if (isHardware && isRotated) {
+                setVideoSize(height, width)
+            } else {
+                setVideoSize(width, height)
             }
-
+            setVideoEncodingBitRate(bitRate)
+            setAudioEncodingBitRate(audioBitRate)
+            setAudioSamplingRate(audioSampleRate)
             setInputSurface(surface)
             setOrientationHint(if (isHardware) 0 else orientationHint)
         }

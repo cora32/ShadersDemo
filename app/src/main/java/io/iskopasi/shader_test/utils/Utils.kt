@@ -248,7 +248,9 @@ fun File.play(context: Context) {
 
 fun Context.createFile(extension: String): File {
     val sdf = SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS", Locale.US)
-    return File(this.filesDir, "shadertoy_${sdf.format(Date())}.$extension")
+    return File(this.filesDir, "shadertoy_${sdf.format(Date())}.$extension").apply {
+        "--> Created output file: $absoluteFile".e
+    }
 }
 
 fun File.saveToDcim(context: Context): File? {
@@ -281,7 +283,9 @@ fun File.saveToDcim(context: Context): File? {
 
 //                this@saveToDcim.delete()
 
-                return File(uri.path + "/" + filename).apply { "--> Saved to DCIM $this".e }
+                return File(uri.path + "/" + filename).apply {
+                    "--> Saved to DCIM ${this.absoluteFile}".e
+                }
             } ?: throw IOException("Failed to get output stream.")
         } ?: throw IOException("Failed to create new MediaStore record.")
     }

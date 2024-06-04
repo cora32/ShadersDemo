@@ -1,6 +1,7 @@
 package io.iskopasi.shader_test
 
 import android.Manifest
+import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -85,6 +86,9 @@ class MainActivity : ComponentActivity() {
 
         // Lock screen brightness
         window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        // Prevents screen rotation
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LOCKED
 
         enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT))
 
