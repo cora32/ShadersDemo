@@ -40,28 +40,30 @@ abstract class Pipeline(
         return null
     }
 
-    public abstract fun createRecordRequest(
+    abstract fun createRecordRequest(
         session: CameraCaptureSession,
         previewStabilization: Boolean
     ): CaptureRequest
 
-    open public fun destroyWindowSurface() {}
+    open fun destroyWindowSurface() {}
 
-    open public fun setPreviewSize(previewSize: Size) {}
+    open fun setPreviewSize(previewSize: Size) {}
 
-    open public fun createResources(surface: Surface) {}
+    open fun createResources(surface: Surface) {}
 
-    public abstract fun getPreviewTargets(): List<Surface>
+    abstract fun getPreviewTargets(): List<Surface>
 
-    public abstract fun getRecordTargets(): List<Surface>
+    abstract fun getRecordTargets(): List<Surface>
 
-    open public fun actionDown(encoderSurface: Surface) {}
+    open fun actionDown(encoderSurface: Surface) {}
 
-    open public fun clearFrameListener() {}
+    open fun setOrientation(orientation: Int) {}
 
-    open public fun cleanup() {}
+    open fun clearFrameListener() {}
 
-    open public fun startRecording() {}
+    open fun cleanup() {}
 
-    open public fun stopRecording() {}
+    open fun startRecording() {}
+
+    open fun stopRecording() {}
 }

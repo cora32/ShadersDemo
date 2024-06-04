@@ -27,6 +27,7 @@ import android.util.Size
 import android.view.Surface
 import android.view.SurfaceView
 import io.iskopasi.shader_test.utils.bg
+import io.iskopasi.shader_test.utils.e
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
@@ -126,6 +127,15 @@ class HardwarePipeline(
         )
     }
 
+    override fun setOrientation(orientation: Int) {
+        "--> Setting pipeline orientation: $orientation".e
+        renderHandler.sendMessage(
+            renderHandler.obtainMessage(
+                RenderHandler.MSG_ON_SET_ORIENTATION, 0, 0, orientation
+            )
+        )
+    }
+
     override fun clearFrameListener() {
         renderHandler.sendMessage(
             renderHandler.obtainMessage(
@@ -173,12 +183,13 @@ class HardwarePipeline(
 }
 
 class ShaderProgram(
-    val id: Int,
+    private val id: Int,
     private val vPositionLoc: Int,
     private val texMatrixLoc: Int,
     private var uMVPMatrixHandle: Int,
     private val iTimeHandle: Int,
     private val iRandHandle: Int,
+    private val orientationLoc: Int,
 ) {
 
     //Handle to vertex attributes
@@ -197,7 +208,7 @@ class ShaderProgram(
         return floatBuffer
     }
 
-    fun setVertexAttribArray(vertexCoords: FloatArray) {
+    fun setData(vertexCoords: FloatArray, orientation: Int) {
         GLES30.glEnableVertexAttribArray(vPositionLoc)
         HardwarePipeline.checkGlError("glEnableVertexAttribArray")
         GLES30.glVertexAttribPointer(
@@ -220,6 +231,8 @@ class ShaderProgram(
 
         GLES30.glUniform1f(iTimeHandle, timeProgress++)
         HardwarePipeline.checkGlError("iTimeHandle")
+        GLES30.glUniform1i(orientationLoc, orientation)
+        HardwarePipeline.checkGlError("orientationLoc")
         GLES30.glUniform1f(iRandHandle, Random.nextFloat())
         HardwarePipeline.checkGlError("iRandHandle")
     }

@@ -4,10 +4,13 @@ uniform samplerExternalOES u_texture;
 varying vec2 v_textureCoord;
 
 uniform vec2 iResolution;
+uniform int orientation;
 uniform float iTime;
 uniform float iRand;
 //const mat3 edge = mat3(3, -6, -1, -4, 16, -4, -1, -6, 3);
-const mat3 edge = mat3(3, -12, -4, -4, 28, -4, 2, -9, -2);
+//const mat3 edge = mat3(3, -12, -4, -4, 28, -4, 2, -9, -2);
+const mat3 edge = mat3(3, -12, -4, -4, 34, -4, -5, -9, -2);
+//const mat3 edge = mat3(7, -10, -8, -4, 20, -4, -2, -6, 3);
 const mat3 non = mat3(1, 1, 1, 1, 1, 1, 1, 1, 1);
 const int radius = 3;
 const float PHI = 1.61803398874989484820459;  // Φ = Golden Ratio
@@ -51,7 +54,7 @@ void main() {
     vec4 value = vec4(0.0, 0.0, 0.0, 1.0);
     //    float r0 = rand2(v_textureCoord + iTime * 0.1);
     //    float r1 = gold_noise(v_textureCoord, r0);
-    float yRow = floor(v_textureCoord.y * 10000.0);
+    float yRow = floor((orientation == 90 ? v_textureCoord.y : v_textureCoord.x) * 10000.0);
 
     if (mod(yRow - iTime, 4.0) == 0.0) {
         float r0 = rand2(v_textureCoord + iTime);
@@ -95,7 +98,7 @@ void main() {
                 value += texture2D(u_texture, coord) * float(edge[x][y]);
             }
         }
-        value /= 4.0;
+        value /= 1.0;
         value.a = 1.0;
 
         // Removing brightness

@@ -82,7 +82,8 @@ class RenderHandler(
     private val dynamicRange: Long,
     characteristics: CameraCharacteristics,
     private val encoder: EncoderWrapper,
-    private val viewFinder: SurfaceView // Leak?
+    private val viewFinder: SurfaceView, // Leak?
+    private var orientation: Int = 90,
 ) : Handler(looper), SurfaceTexture.OnFrameAvailableListener {
     companion object {
         val MSG_CREATE_RESOURCES = 0
@@ -91,6 +92,7 @@ class RenderHandler(
         val MSG_CLEAR_FRAME_LISTENER = 3
         val MSG_CLEANUP = 4
         val MSG_ON_FRAME_AVAILABLE = 5
+        val MSG_ON_SET_ORIENTATION = 6
     }
 
     private var previewSize = Size(0, 0)
@@ -122,11 +124,6 @@ class RenderHandler(
 
     /** Storage space for setting the texMatrix uniform */
     private val texMatrix = FloatArray(16)
-
-    /** Orientation of the camera as 0, 90, 180, or 270 degrees */
-    private val orientation: Int by lazy {
-        characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION)!!
-    }
 
     @Volatile
     private var currentlyRecording = false
@@ -539,6 +536,8 @@ class RenderHandler(
         HardwarePipeline.checkGlError("iTimeHandle")
         val iRandHandle = GLES30.glGetUniformLocation(shaderProgram, "iRand")
         HardwarePipeline.checkGlError("iRandHandle")
+        val orientationLoc = GLES30.glGetUniformLocation(shaderProgram, "orientation")
+        HardwarePipeline.checkGlError("orientationLoc")
 
         return ShaderProgram(
             shaderProgram,
@@ -546,7 +545,8 @@ class RenderHandler(
             texMatrixLoc,
             uMVPMatrixHandle,
             iTimeHandle,
-            iRandHandle
+            iRandHandle,
+            orientationLoc
         )
     }
 
@@ -657,7 +657,7 @@ class RenderHandler(
         }
         shaderProgram.setTexMatrix(texMatrix)
 
-        shaderProgram.setVertexAttribArray(FULLSCREEN_QUAD)
+        shaderProgram.setData(FULLSCREEN_QUAD, orientation)
 
         GLES30.glViewport(
             viewportRect.left, viewportRect.top, viewportRect.right, viewportRect.bottom
@@ -939,6 +939,11 @@ class RenderHandler(
         sendMessage(obtainMessage(MSG_ON_FRAME_AVAILABLE, 0, 0, surfaceTexture))
     }
 
+    private fun setOrientation(mOrientation: Int) {
+        "--> Setting renderer orientation: $orientation".e
+        orientation = mOrientation
+    }
+
     @RequiresApi(Build.VERSION_CODES.O)
     override fun handleMessage(msg: Message) {
         when (msg.what) {
@@ -948,6 +953,7 @@ class RenderHandler(
             MSG_CLEAR_FRAME_LISTENER -> clearFrameListener()
             MSG_CLEANUP -> cleanup()
             MSG_ON_FRAME_AVAILABLE -> onFrameAvailableImpl(msg.obj as SurfaceTexture)
+            MSG_ON_SET_ORIENTATION -> setOrientation(msg.obj as Int)
         }
     }
 }

@@ -44,7 +44,7 @@ class EncoderWrapper(
     private val bitRate: Int,
     private val frameRate: Int,
     private val dynamicRange: Long,
-    private val orientationHint: Int,
+    private var orientationHint: Int,
     private var outputFile: File,
     private val useMediaRecorder: Boolean,
     private val videoCodec: Int,
@@ -161,7 +161,7 @@ class EncoderWrapper(
             setAudioEncodingBitRate(audioBitRate)
             setAudioSamplingRate(audioSampleRate)
             setInputSurface(surface)
-            setOrientationHint(if (isHardware) 0 else orientationHint)
+            setOrientationHint(orientationHint)
         }
     }
 
@@ -327,6 +327,10 @@ class EncoderWrapper(
         if (!useMediaRecorder) {
             mEncoderThread!!.waitForFirstFrame()
         }
+    }
+
+    fun setOrientation(mOrientation: Int) {
+        orientationHint = mOrientation
     }
 
     /**

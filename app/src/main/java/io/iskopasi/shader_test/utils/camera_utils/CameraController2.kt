@@ -4,6 +4,7 @@ package io.iskopasi.shader_test.utils.camera_utils
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.res.Configuration
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
@@ -29,6 +30,7 @@ import android.view.WindowManager
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.os.ExecutorCompat
+import io.iskopasi.shader_test.utils.OrientationListener
 import io.iskopasi.shader_test.utils.bg
 import io.iskopasi.shader_test.utils.createFile
 import io.iskopasi.shader_test.utils.e
@@ -72,6 +74,7 @@ class CameraController2(
     private var audioBitrate = 0
     private var audioSampleRate = 0
     private var initCallback: InitCallback? = null
+    private var mOrientation: Int = 90
 
     private val RECORDER_VIDEO_BITRATE: Int = 10_000_000
     private val MIN_REQUIRED_RECORDING_TIME_MILLIS: Long = 1000L
@@ -82,20 +85,30 @@ class CameraController2(
         DynamicRangeProfiles.PUBLIC_MAX
 
     /** [CameraCharacteristics] corresponding to the provided Camera ID */
-    private lateinit var characteristics: CameraCharacteristics
+    private var characteristics: CameraCharacteristics
     private lateinit var encoder: EncoderWrapper
     private lateinit var session: CameraCaptureSession
     private lateinit var pipeline: Pipeline
     private lateinit var outputFile: File
     private lateinit var recordRequest: CaptureRequest
 
-    /** Orientation of the camera as 0, 90, 180, or 270 degrees */
-    private val orientation: Int by lazy {
-        characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION)!!
-    }
-
     /** Condition variable for blocking until the recording completes */
     private val cvRecordingStarted = ConditionVariable(false)
+
+    private val orientationListener: OrientationListener by lazy {
+        object : OrientationListener(context) {
+            override fun onSimpleOrientationChanged(orientation: Int) {
+                when (orientation) {
+                    Configuration.ORIENTATION_LANDSCAPE -> mOrientation = 0
+                    Configuration.ORIENTATION_PORTRAIT -> mOrientation = 90
+                }
+
+                "--> Setting orientation: $mOrientation".e
+                pipeline.setOrientation(mOrientation)
+                encoder.setOrientation(mOrientation)
+            }
+        }
+    }
 
     init {
         isInitialized = false
@@ -123,6 +136,8 @@ class CameraController2(
 
             initCallback?.onInitialized()
             isInitialized = true
+
+            orientationListener.enable()
         }
     }
 
@@ -132,6 +147,7 @@ class CameraController2(
 
     fun onStart() {
         "--> onStart".e
+        orientationListener.enable()
         startThread()
     }
 
@@ -141,10 +157,11 @@ class CameraController2(
 
     fun onPause() {
         "--> onPause".e
-//        pipeline.cleanup()
     }
 
     fun onStop() {
+        orientationListener.disable()
+
         isInitialized = false
         "--> onStop".e
 
@@ -391,7 +408,7 @@ class CameraController2(
             bitrate,
             fps,
             dynamicRange,
-            orientation,
+            mOrientation,
             outputFile,
             useMediaRecorder = true,
             videoCodec,
