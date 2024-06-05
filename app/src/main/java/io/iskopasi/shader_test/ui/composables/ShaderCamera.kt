@@ -21,10 +21,12 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import io.iskopasi.shader_test.DrawerController
+import io.iskopasi.shader_test.utils.OrientationListener
 import io.iskopasi.shader_test.utils.camera_utils.AutoFitSurfaceView
 import io.iskopasi.shader_test.utils.camera_utils.CameraController2
 import io.iskopasi.shader_test.utils.camera_utils.InitCallback
 import io.iskopasi.shader_test.utils.e
+import io.iskopasi.shader_test.utils.rotation
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
@@ -42,11 +44,20 @@ fun CameraView(controller: DrawerController) {
 //    }
 
     var cameraController: CameraController2? = null
+    val orientationListener: OrientationListener by lazy {
+        "--> creating orientationListener".e
+        object : OrientationListener(context) {
+            override fun onSimpleOrientationChanged(orientation: Int, currentOrientation: Int) {
+                cameraController?.onOrientationChanged(orientation, currentOrientation)
+            }
+        }
+    }
+
     fun getLifecycleObserver() = object : DefaultLifecycleObserver {
 
         override fun onStart(owner: LifecycleOwner) {
-            super.onStart(owner)
             cameraController?.onStart()
+            orientationListener.enable()
         }
 
         override fun onResume(owner: LifecycleOwner) {
@@ -59,6 +70,7 @@ fun CameraView(controller: DrawerController) {
 
         override fun onStop(owner: LifecycleOwner) {
             cameraController?.onStop()
+            orientationListener.disable()
         }
 
         override fun onDestroy(owner: LifecycleOwner) {
@@ -67,16 +79,18 @@ fun CameraView(controller: DrawerController) {
         }
     }
 
+
     fun getSurfaceCallback(view: AutoFitSurfaceView) = object : SurfaceHolder.Callback {
         override fun surfaceCreated(holder: SurfaceHolder) {
-            "--> surfaceCreated".e
+            "--> surfaceCreated rotation: ${context.rotation}".e
             // To ensure that size is set, initialize camera in the view's thread
             view.post {
                 cameraController = CameraController2(
                     isFront = false,
                     view.context.applicationContext,
                     view,
-                    holder.surface
+                    holder.surface,
+                    view.context.rotation
                 ).apply {
                     addCallbackListener(object : InitCallback {
                         override fun onInitialized() {

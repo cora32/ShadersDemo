@@ -43,7 +43,7 @@ class HardwarePipeline(
     dynamicRange: Long,
     characteristics: CameraCharacteristics,
     encoder: EncoderWrapper,
-    viewFinder: SurfaceView
+    viewFinder: SurfaceView,
 ) : Pipeline(
     width, height, fps, filterOn, dynamicRange, characteristics, encoder, viewFinder
 ) {
@@ -61,7 +61,6 @@ class HardwarePipeline(
         filterOn,
         transfer,
         dynamicRange,
-        characteristics,
         encoder,
         viewFinder
     )
@@ -132,6 +131,15 @@ class HardwarePipeline(
         renderHandler.sendMessage(
             renderHandler.obtainMessage(
                 RenderHandler.MSG_ON_SET_ORIENTATION, 0, 0, orientation
+            )
+        )
+    }
+
+    override fun setInitialOrientation(orientation: Int) {
+        "--> Setting initial pipeline orientation: $orientation".e
+        renderHandler.sendMessage(
+            renderHandler.obtainMessage(
+                RenderHandler.MSG_ON_SET_INITIAL_ORIENTATION, 0, 0, orientation
             )
         )
     }

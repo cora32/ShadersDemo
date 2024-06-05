@@ -37,7 +37,6 @@ import androidx.lifecycle.LifecycleOwner
 import io.iskopasi.shader_test.ui.composables.MyGLRenderer
 import io.iskopasi.shader_test.utils.CameraUtils.getCameraId
 import io.iskopasi.shader_test.utils.camera_utils.EncoderWrapper
-import io.iskopasi.shader_test.utils.camera_utils.cameraManager
 import kotlinx.coroutines.delay
 import java.io.File
 import kotlin.coroutines.resume

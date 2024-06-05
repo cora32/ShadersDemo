@@ -6,7 +6,6 @@ import android.hardware.DataSpace
 import android.hardware.HardwareBuffer
 import android.hardware.SyncFence
 import android.hardware.camera2.CameraCaptureSession
-import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.params.DynamicRangeProfiles
@@ -80,10 +79,8 @@ class RenderHandler(
     private val filterOn: Boolean,
     private val transfer: Int,
     private val dynamicRange: Long,
-    characteristics: CameraCharacteristics,
     private val encoder: EncoderWrapper,
     private val viewFinder: SurfaceView, // Leak?
-    private var orientation: Int = 90,
 ) : Handler(looper), SurfaceTexture.OnFrameAvailableListener {
     companion object {
         val MSG_CREATE_RESOURCES = 0
@@ -93,8 +90,11 @@ class RenderHandler(
         val MSG_CLEANUP = 4
         val MSG_ON_FRAME_AVAILABLE = 5
         val MSG_ON_SET_ORIENTATION = 6
+        val MSG_ON_SET_INITIAL_ORIENTATION = 7
     }
 
+    private var initialOrientation: Int = 90
+    private var orientation: Int = initialOrientation
     private var previewSize = Size(0, 0)
 
     /** OpenGL texture for the SurfaceTexture provided to the camera */
@@ -792,15 +792,17 @@ class RenderHandler(
     private fun copyRenderToEncode() {
         EGL14.eglMakeCurrent(eglDisplay, eglEncoderSurface, eglRenderSurface, eglContext)
 
-        var viewportWidth = width
-        var viewportHeight = height
+        val viewportWidth = height
+        val viewportHeight = width
 
-        /** Swap width and height if the camera is rotated on its side. */
-        "--> Recording: $orientation in ${Thread.currentThread()}".e
-        if (orientation == 90 || orientation == 270) {
-            viewportWidth = height
-            viewportHeight = width
-        }
+////        /** Swap width and height if the camera is rotated on its side. */
+//        if (initialOrientation == 90 || initialOrientation == 270) {
+//            "--> Recording as landscape!".e
+//            viewportWidth = height
+//            viewportHeight = width
+//        } else {
+//            "--> Recording as portrait!".e
+//        }
 
         onDrawFrame(
             renderTexId,
@@ -940,8 +942,13 @@ class RenderHandler(
     }
 
     private fun setOrientation(mOrientation: Int) {
-        "--> Setting renderer orientation: $orientation".e
+        "--> Setting renderer orientation: $mOrientation".e
         orientation = mOrientation
+    }
+
+    private fun setInitialOrientation(initOrientation: Int) {
+        "--> Setting renderer initial orientation: $initOrientation".e
+        initialOrientation = initOrientation
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -954,6 +961,7 @@ class RenderHandler(
             MSG_CLEANUP -> cleanup()
             MSG_ON_FRAME_AVAILABLE -> onFrameAvailableImpl(msg.obj as SurfaceTexture)
             MSG_ON_SET_ORIENTATION -> setOrientation(msg.obj as Int)
+            MSG_ON_SET_INITIAL_ORIENTATION -> setInitialOrientation(msg.obj as Int)
         }
     }
 }

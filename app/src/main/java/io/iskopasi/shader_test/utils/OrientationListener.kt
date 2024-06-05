@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.res.Configuration
 import android.view.OrientationEventListener
 import android.view.Surface
-import android.view.WindowManager
 import java.util.concurrent.locks.ReentrantLock
 
 
@@ -45,7 +44,7 @@ abstract class OrientationListener(
             if (currentOrientation == Surface.ROTATION_0 || currentOrientation == Surface.ROTATION_180) defaultOrientation
             else orthogonalOrientation
 
-        onSimpleOrientationChanged(toReportOrientation)
+        onSimpleOrientationChanged(toReportOrientation, currentOrientation)
     }
 
     private val deviceDefaultOrientation: Int
@@ -65,15 +64,15 @@ abstract class OrientationListener(
             return defaultScreenOrientation
         }
 
+
     /**
      * Provides device default orientation
      *
      * @return value of [Configuration.ORIENTATION_LANDSCAPE] or [Configuration.ORIENTATION_PORTRAIT]
      */
     private fun initDeviceDefaultOrientation(context: Context): Int {
-        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val config: Configuration = context.resources.configuration
-        val rotation = windowManager.defaultDisplay.rotation
+        val rotation = context.rotation
 
         val isLand = config.orientation === Configuration.ORIENTATION_LANDSCAPE
         val isDefaultAxis = rotation == Surface.ROTATION_0 || rotation == Surface.ROTATION_180
@@ -92,7 +91,7 @@ abstract class OrientationListener(
      *
      * @param orientation value of [Configuration.ORIENTATION_LANDSCAPE] or [Configuration.ORIENTATION_PORTRAIT]
      */
-    abstract fun onSimpleOrientationChanged(orientation: Int)
+    abstract fun onSimpleOrientationChanged(orientation: Int, currentOrientation: Int)
 
     companion object {
         val CONFIGURATION_ORIENTATION_UNDEFINED: Int = Configuration.ORIENTATION_UNDEFINED

@@ -54,7 +54,9 @@ void main() {
     vec4 value = vec4(0.0, 0.0, 0.0, 1.0);
     //    float r0 = rand2(v_textureCoord + iTime * 0.1);
     //    float r1 = gold_noise(v_textureCoord, r0);
-    float yRow = floor((orientation == 90 ? v_textureCoord.y : v_textureCoord.x) * 10000.0);
+    float yRow = floor(((orientation == 0 || orientation == 180)
+    ? v_textureCoord.y
+    : v_textureCoord.x) * 10000.0);
 
     if (mod(yRow - iTime, 4.0) == 0.0) {
         float r0 = rand2(v_textureCoord + iTime);

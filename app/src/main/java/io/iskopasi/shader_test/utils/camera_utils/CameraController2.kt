@@ -4,7 +4,6 @@ package io.iskopasi.shader_test.utils.camera_utils
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.res.Configuration
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
@@ -21,17 +20,15 @@ import android.os.ConditionVariable
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
-import android.os.PowerManager
 import android.util.Size
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
-import android.view.WindowManager
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.os.ExecutorCompat
-import io.iskopasi.shader_test.utils.OrientationListener
 import io.iskopasi.shader_test.utils.bg
+import io.iskopasi.shader_test.utils.cameraManager
 import io.iskopasi.shader_test.utils.createFile
 import io.iskopasi.shader_test.utils.e
 import io.iskopasi.shader_test.utils.saveToDcim
@@ -53,7 +50,8 @@ class CameraController2(
     isFront: Boolean,
     context: Context,
     view: AutoFitSurfaceView,
-    surface: Surface
+    surface: Surface,
+    orientation: Int
 ) {
     var isInitialized: Boolean = false
     private var previewSize: Size
@@ -74,7 +72,7 @@ class CameraController2(
     private var audioBitrate = 0
     private var audioSampleRate = 0
     private var initCallback: InitCallback? = null
-    private var mOrientation: Int = 90
+    private var mOrientation: Int = orientation
 
     private val RECORDER_VIDEO_BITRATE: Int = 10_000_000
     private val MIN_REQUIRED_RECORDING_TIME_MILLIS: Long = 1000L
@@ -94,21 +92,6 @@ class CameraController2(
 
     /** Condition variable for blocking until the recording completes */
     private val cvRecordingStarted = ConditionVariable(false)
-
-    private val orientationListener: OrientationListener by lazy {
-        object : OrientationListener(context) {
-            override fun onSimpleOrientationChanged(orientation: Int) {
-                when (orientation) {
-                    Configuration.ORIENTATION_LANDSCAPE -> mOrientation = 0
-                    Configuration.ORIENTATION_PORTRAIT -> mOrientation = 90
-                }
-
-                "--> Setting orientation: $mOrientation".e
-                pipeline.setOrientation(mOrientation)
-                encoder.setOrientation(mOrientation)
-            }
-        }
-    }
 
     init {
         isInitialized = false
@@ -136,8 +119,6 @@ class CameraController2(
 
             initCallback?.onInitialized()
             isInitialized = true
-
-            orientationListener.enable()
         }
     }
 
@@ -147,8 +128,6 @@ class CameraController2(
 
     fun onStart() {
         "--> onStart".e
-        orientationListener.enable()
-        startThread()
     }
 
     fun onResume() {
@@ -160,8 +139,6 @@ class CameraController2(
     }
 
     fun onStop() {
-        orientationListener.disable()
-
         isInitialized = false
         "--> onStop".e
 
@@ -449,6 +426,8 @@ class CameraController2(
             "--> Starting recording".e
             recordingStartMillis = System.currentTimeMillis()
 
+            encoder.setInitialOrientation(mOrientation)
+            pipeline.setInitialOrientation(mOrientation)
             pipeline.actionDown(encoderSurface)
 
             // Finalizes encoder setup and starts recording
@@ -521,11 +500,16 @@ class CameraController2(
             encoder.setOutputFile(outputFile)
         }
     }
-}
 
-val Context.cameraManager: CameraManager?
-    get() = ContextCompat.getSystemService(this, CameraManager::class.java)
-val Context.powerManager: PowerManager?
-    get() = ContextCompat.getSystemService(this, PowerManager::class.java)
-val Context.windowManager: WindowManager?
-    get() = ContextCompat.getSystemService(this, WindowManager::class.java)
+    fun onOrientationChanged(orientation: Int, currentOrientation: Int) {
+        when (currentOrientation) {
+            Surface.ROTATION_0 -> mOrientation = 0
+            Surface.ROTATION_90 -> mOrientation = 90
+            Surface.ROTATION_180 -> mOrientation = 180
+            Surface.ROTATION_270 -> mOrientation = 270
+        }
+
+        "--> Setting orientation: $mOrientation".e
+        pipeline.setOrientation(mOrientation)
+    }
+}

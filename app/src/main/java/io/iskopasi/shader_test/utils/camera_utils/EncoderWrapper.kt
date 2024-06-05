@@ -34,6 +34,7 @@ import io.iskopasi.shader_test.utils.e
 import java.io.File
 import java.lang.ref.WeakReference
 import java.nio.ByteBuffer
+import kotlin.math.abs
 
 /**
  * Encodes video by streaming to disk.
@@ -62,14 +63,17 @@ class EncoderWrapper(
         const val VIDEO_CODEC_ID_AV1: Int = 2
     }
 
+    private val fixedOrientationHint: Int
+        get() = abs(orientationHint - 90)
+
     private val isHardware: Boolean
         get() {
             return true
         }
 
-    private val isRotated: Boolean
+    private val isPortrait: Boolean
         get() {
-            return orientationHint == 90 || orientationHint == 270
+            return orientationHint == 0 || orientationHint == 180
         }
 
     private val mMimeType = when (videoCodec) {
@@ -83,7 +87,7 @@ class EncoderWrapper(
         if (useMediaRecorder) {
             null
         } else {
-            EncoderThread(mEncoder!!, outputFile, if (isHardware) 0 else orientationHint)
+            EncoderThread(mEncoder!!, outputFile, orientationHint)
         }
     }
 
@@ -152,15 +156,20 @@ class EncoderWrapper(
             setOutputFile(outputFile.absolutePath)
 
             setVideoFrameRate(frameRate)
-            if (isHardware && isRotated) {
-                setVideoSize(height, width)
-            } else {
-                setVideoSize(width, height)
-            }
+            setVideoSize(height, width)
+//            if (isPortrait) {
+//                "--> MediaRecorder is in portrait!".e
+//                setVideoSize(height, width)
+//            } else {
+//                "--> MediaRecorder is in landscape!".e
+//                setVideoSize(height, width)
+//            }
             setVideoEncodingBitRate(bitRate)
             setAudioEncodingBitRate(audioBitRate)
             setAudioSamplingRate(audioSampleRate)
             setInputSurface(surface)
+
+            "--> Encoder orientationHint is: $orientationHint".e
             setOrientationHint(orientationHint)
         }
     }
@@ -329,8 +338,15 @@ class EncoderWrapper(
         }
     }
 
-    fun setOrientation(mOrientation: Int) {
+    fun setInitialOrientation(mOrientation: Int) {
+        "--> Setting initial orientation hint: $mOrientation".e
         orientationHint = mOrientation
+
+        if (useMediaRecorder) {
+            mMediaRecorder = createRecorder(context, mInputSurface)
+        } else {
+            // TODO: restart `mEncoderThread` with new orientationHint
+        }
     }
 
     /**

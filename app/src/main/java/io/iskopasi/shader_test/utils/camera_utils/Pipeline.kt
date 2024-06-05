@@ -59,6 +59,8 @@ abstract class Pipeline(
 
     open fun setOrientation(orientation: Int) {}
 
+    open fun setInitialOrientation(orientation: Int) {}
+
     open fun clearFrameListener() {}
 
     open fun cleanup() {}

@@ -8,11 +8,15 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Picture
+import android.hardware.camera2.CameraManager
+import android.hardware.display.DisplayManager
 import android.media.Image
 import android.os.Build
 import android.os.FileUtils
+import android.os.PowerManager
 import android.provider.MediaStore
 import android.util.Log
+import android.view.WindowManager
 import android.webkit.MimeTypeMap
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
@@ -292,3 +296,23 @@ fun File.saveToDcim(context: Context): File? {
 
     return null
 }
+
+val Context.cameraManager: CameraManager?
+    get() = ContextCompat.getSystemService(this, CameraManager::class.java)
+val Context.powerManager: PowerManager?
+    get() = ContextCompat.getSystemService(this, PowerManager::class.java)
+val Context.windowManager: WindowManager?
+    get() = ContextCompat.getSystemService(this, WindowManager::class.java)
+
+val Context.displayManager: DisplayManager?
+    get() = ContextCompat.getSystemService(this, DisplayManager::class.java)
+
+val Context.rotation: Int
+    get() {
+        return windowManager!!.defaultDisplay.rotation
+//        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+//            display!!.rotation
+//        } else {
+//            windowManager!!.defaultDisplay.rotation
+//        }
+    }
