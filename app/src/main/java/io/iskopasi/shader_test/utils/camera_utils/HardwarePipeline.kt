@@ -44,6 +44,7 @@ class HardwarePipeline(
     characteristics: CameraCharacteristics,
     encoder: EncoderWrapper,
     viewFinder: SurfaceView,
+    orientation: Int,
 ) : Pipeline(
     width, height, fps, filterOn, dynamicRange, characteristics, encoder, viewFinder
 ) {
@@ -62,7 +63,8 @@ class HardwarePipeline(
         transfer,
         dynamicRange,
         encoder,
-        viewFinder
+        viewFinder,
+        orientation
     )
 
     private fun stopThread() {
@@ -237,6 +239,8 @@ class ShaderProgram(
 //        GLES30.glUniformMatrix4fv(uMVPMatrixHandle, 1, false, mvpMatrix, 0)
 //        HardwarePipeline.checkGlError("uMVPMatrixHandle")
 
+
+        "---> ${orientation}".e
         GLES30.glUniform1f(iTimeHandle, timeProgress++)
         HardwarePipeline.checkGlError("iTimeHandle")
         GLES30.glUniform1i(orientationLoc, orientation)

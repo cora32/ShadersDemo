@@ -403,7 +403,8 @@ class CameraController2(
             dynamicRange,
             characteristics,
             encoder,
-            view
+            view,
+            orientation = mOrientation
         )
         pipeline.setPreviewSize(previewSize)
         pipeline.createResources(surface)
@@ -502,6 +503,7 @@ class CameraController2(
     }
 
     fun onOrientationChanged(orientation: Int, currentOrientation: Int) {
+        "--> Setting orientation: $mOrientation".e
         when (currentOrientation) {
             Surface.ROTATION_0 -> mOrientation = 0
             Surface.ROTATION_90 -> mOrientation = 90
@@ -509,7 +511,8 @@ class CameraController2(
             Surface.ROTATION_270 -> mOrientation = 270
         }
 
-        "--> Setting orientation: $mOrientation".e
-        pipeline.setOrientation(mOrientation)
+        if (isInitialized) {
+            pipeline.setOrientation(mOrientation)
+        }
     }
 }

@@ -81,6 +81,7 @@ class RenderHandler(
     private val dynamicRange: Long,
     private val encoder: EncoderWrapper,
     private val viewFinder: SurfaceView, // Leak?
+    private val initialOrientation: Int
 ) : Handler(looper), SurfaceTexture.OnFrameAvailableListener {
     companion object {
         val MSG_CREATE_RESOURCES = 0
@@ -93,7 +94,6 @@ class RenderHandler(
         val MSG_ON_SET_INITIAL_ORIENTATION = 7
     }
 
-    private var initialOrientation: Int = 90
     private var orientation: Int = initialOrientation
     private var previewSize = Size(0, 0)
 
@@ -947,8 +947,8 @@ class RenderHandler(
     }
 
     private fun setInitialOrientation(initOrientation: Int) {
-        "--> Setting renderer initial orientation: $initOrientation".e
-        initialOrientation = initOrientation
+//        "--> Setting renderer initial orientation: $initOrientation".e
+//        initialOrientation = initOrientation
     }
 
     @RequiresApi(Build.VERSION_CODES.O)

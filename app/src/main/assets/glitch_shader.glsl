@@ -54,11 +54,19 @@ void main() {
     vec4 value = vec4(0.0, 0.0, 0.0, 1.0);
     //    float r0 = rand2(v_textureCoord + iTime * 0.1);
     //    float r1 = gold_noise(v_textureCoord, r0);
-    float yRow = floor(((orientation == 0 || orientation == 180)
-    ? v_textureCoord.y
-    : v_textureCoord.x) * 10000.0);
+    float yRow = 0.0;
 
-    if (mod(yRow - iTime, 4.0) == 0.0) {
+    if (orientation == 0) {
+        yRow = -1.0 * floor(v_textureCoord.y * 10000.0);
+    } else if (orientation == 90) {
+        yRow = -1.0 * floor(v_textureCoord.x * 10000.0);
+    } else if (orientation == 180) {
+        yRow = floor(v_textureCoord.y * 10000.0);
+    } else if (orientation == 270) {
+        yRow = floor(v_textureCoord.x * 10000.0);
+    }
+
+    if (mod(yRow + iTime, 4.0) == 0.0) {
         float r0 = rand2(v_textureCoord + iTime);
 
         int r1Sign = mod(floor(r0 * 100.0), 2.0) == 0.0 ? -1 : 1;
