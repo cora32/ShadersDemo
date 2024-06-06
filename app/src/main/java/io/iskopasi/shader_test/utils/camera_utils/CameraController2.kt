@@ -4,6 +4,7 @@ package io.iskopasi.shader_test.utils.camera_utils
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.PixelFormat
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
@@ -14,6 +15,7 @@ import android.hardware.camera2.params.DynamicRangeProfiles
 import android.hardware.camera2.params.OutputConfiguration
 import android.hardware.camera2.params.SessionConfiguration
 import android.media.CamcorderProfile
+import android.media.ImageReader
 import android.media.MediaScannerConnection
 import android.os.Build
 import android.os.ConditionVariable
@@ -31,6 +33,7 @@ import io.iskopasi.shader_test.utils.bg
 import io.iskopasi.shader_test.utils.cameraManager
 import io.iskopasi.shader_test.utils.createFile
 import io.iskopasi.shader_test.utils.e
+import io.iskopasi.shader_test.utils.saveARGB8888ToFile
 import io.iskopasi.shader_test.utils.saveToDcim
 import io.iskopasi.shader_test.utils.share
 import kotlinx.coroutines.delay
@@ -89,6 +92,10 @@ class CameraController2(
     private lateinit var pipeline: Pipeline
     private lateinit var outputFile: File
     private lateinit var recordRequest: CaptureRequest
+    private var imageReader: ImageReader? = null
+
+    private val isPortrait: Boolean
+        get() = mOrientation == 0 || mOrientation == 180
 
     /** Condition variable for blocking until the recording completes */
     private val cvRecordingStarted = ConditionVariable(false)
@@ -151,6 +158,7 @@ class CameraController2(
         }
         stopThread()
         pipeline.cleanup()
+        imageReader?.close()
 
         removeEmptyFile()
     }
@@ -394,6 +402,8 @@ class CameraController2(
             audioSampleRate,
         )
 
+        createImageReader(context)
+
         pipeline = HardwarePipeline(
             width,
             height,
@@ -410,11 +420,46 @@ class CameraController2(
         pipeline.createResources(surface)
     }
 
+    private fun createImageReader(context: Context) {
+
+        val mSensorOrientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION)
+        "--> mSensorOrientation: $mSensorOrientation".e
+
+
+        imageReader?.close()
+        imageReader = ImageReader.newInstance(
+            if (isPortrait) height else width,
+            if (isPortrait) width else height,
+            PixelFormat.RGBA_8888,
+            1
+        ).apply {
+            setOnImageAvailableListener(
+                { reader ->
+                    reader.acquireLatestImage().use { image ->
+                        image.saveARGB8888ToFile(context)
+                    }
+                },
+                cameraHandler
+            )
+        }
+    }
+
     /**
      * Setup a [Surface] for the encoder
      */
     private val encoderSurface: Surface by lazy {
         encoder.getInputSurface()
+    }
+
+    fun takePhoto() = bg {
+        if (!isInitialized) {
+            "--> CameraController not initialized yet".e
+            return@bg
+        }
+
+        imageReader?.apply {
+            pipeline.actionTakePhoto(imageReader!!.surface)
+        }
     }
 
     fun startVideoRec(context: Context) = bg {
@@ -502,7 +547,7 @@ class CameraController2(
         }
     }
 
-    fun onOrientationChanged(orientation: Int, currentOrientation: Int) {
+    fun onOrientationChanged(orientation: Int, currentOrientation: Int, context: Context) {
         "--> Setting orientation: $mOrientation".e
         when (currentOrientation) {
             Surface.ROTATION_0 -> mOrientation = 0
@@ -513,6 +558,9 @@ class CameraController2(
 
         if (isInitialized) {
             pipeline.setOrientation(mOrientation)
+
+            // Have to recreate imageReader because it cannot change its size once initialized
+            createImageReader(context)
         }
     }
 }

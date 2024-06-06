@@ -24,6 +24,7 @@ import android.os.Message
 import android.util.Log
 import android.util.Range
 import android.util.Size
+import android.util.SparseIntArray
 import android.view.Surface
 import android.view.SurfaceControl
 import android.view.SurfaceView
@@ -71,6 +72,7 @@ fun idToStr(transferId: Int): String = when (transferId) {
     else -> throw RuntimeException("Unexpected transferId " + transferId)
 }
 
+
 class RenderHandler(
     looper: Looper,
     private val width: Int,
@@ -84,15 +86,19 @@ class RenderHandler(
     private val initialOrientation: Int
 ) : Handler(looper), SurfaceTexture.OnFrameAvailableListener {
     companion object {
-        val MSG_CREATE_RESOURCES = 0
-        val MSG_DESTROY_WINDOW_SURFACE = 1
-        val MSG_ACTION_DOWN = 2
-        val MSG_CLEAR_FRAME_LISTENER = 3
-        val MSG_CLEANUP = 4
-        val MSG_ON_FRAME_AVAILABLE = 5
-        val MSG_ON_SET_ORIENTATION = 6
-        val MSG_ON_SET_INITIAL_ORIENTATION = 7
+        const val MSG_CREATE_RESOURCES = 0
+        const val MSG_DESTROY_WINDOW_SURFACE = 1
+        const val MSG_ACTION_DOWN = 2
+        const val MSG_CLEAR_FRAME_LISTENER = 3
+        const val MSG_CLEANUP = 4
+        const val MSG_ON_FRAME_AVAILABLE = 5
+        const val MSG_ON_SET_ORIENTATION = 6
+        const val MSG_ON_SET_INITIAL_ORIENTATION = 7
+        const val MSG_ACTION_TAKE_PHOTO = 8
     }
+
+    private val isPortrait: Boolean
+        get() = orientation == 0 || orientation == 180
 
     private var orientation: Int = initialOrientation
     private var previewSize = Size(0, 0)
@@ -127,6 +133,7 @@ class RenderHandler(
 
     @Volatile
     private var currentlyRecording = false
+    private var currentlyTakingPicture = false
 
     /** EGL / OpenGL data. */
     private var eglDisplay = EGL14.EGL_NO_DISPLAY
@@ -134,15 +141,14 @@ class RenderHandler(
     private var eglConfig: EGLConfig? = null
     private var eglRenderSurface: EGLSurface? = EGL14.EGL_NO_SURFACE
     private var eglEncoderSurface: EGLSurface? = EGL14.EGL_NO_SURFACE
+    private var eglPhotoSurface: EGLSurface? = EGL14.EGL_NO_SURFACE
     private var eglWindowSurface: EGLSurface? = EGL14.EGL_NO_SURFACE
     private var vertexShader = 0
-    private var cameraToRenderFragmentShader = 0
-    private var renderToPreviewFragmentShader = 0
-    private var renderToEncodeFragmentShader = 0
 
     private var cameraToRenderShaderProgram: ShaderProgram? = null
     private var renderToPreviewShaderProgram: ShaderProgram? = null
     private var renderToEncodeShaderProgram: ShaderProgram? = null
+    private var renderToPhotoShaderProgram: ShaderProgram? = null
 
     private val cvResourcesCreated = ConditionVariable(false)
     private val cvDestroyWindowSurface = ConditionVariable(false)
@@ -158,9 +164,24 @@ class RenderHandler(
         "--> stopRecording called; currentlyRecording = $currentlyRecording".e
     }
 
+    private val ORIENTATIONS: SparseIntArray = SparseIntArray(4).apply {
+        append(Surface.ROTATION_0, 90)
+        append(Surface.ROTATION_90, 0)
+        append(Surface.ROTATION_180, 270)
+        append(Surface.ROTATION_270, 180)
+    }
+
+    private fun getOrientation(rotation: Int): Int {
+        // Sensor orientation is 90 for most devices, or 270 for some devices (eg. Nexus 5X)
+        // We have to take that into account and rotate JPEG properly.
+        // For devices with orientation of 90, we simply return our mapping from ORIENTATIONS.
+        // For devices with orientation of 270, we need to rotate the JPEG 180 degrees.
+        return (ORIENTATIONS.get(rotation) + 90 + 270) % 360
+    }
     fun createRecordRequest(
         session: CameraCaptureSession, previewStabilization: Boolean
     ): CaptureRequest {
+
         "--> Creating createRecordRequest".e
         cvResourcesCreated.block()
 
@@ -181,6 +202,8 @@ class RenderHandler(
                     CaptureRequest.SENSOR_PIXEL_MODE_MAXIMUM_RESOLUTION
                 )
             }
+            "--> settinfgg hint: orientation: $orientation ${getOrientation(orientation)}".e
+            set(CaptureRequest.JPEG_ORIENTATION, getOrientation(orientation))
 
             if (previewStabilization) {
                 set(
@@ -489,12 +512,15 @@ class RenderHandler(
                 else -> throw RuntimeException("Unexpected transfer $transfer")
             }
             renderToEncodeShaderProgram = PASSTHROUGH_HDR_FSHADER.toShaderProgram()
+            renderToPhotoShaderProgram = PASSTHROUGH_HDR_FSHADER.toShaderProgram()
         } else {
             vertexShader = createShader(GLES30.GL_VERTEX_SHADER, TRANSFORM_VSHADER)
             cameraToRenderShaderProgram = PASSTHROUGH_FSHADER.toShaderProgram()
             renderToPreviewShaderProgram =
                 viewFinder.context.loadShader("glitch_shader.glsl").toShaderProgram()
             renderToEncodeShaderProgram =
+                viewFinder.context.loadShader("glitch_shader.glsl").toShaderProgram()
+            renderToPhotoShaderProgram =
                 viewFinder.context.loadShader("glitch_shader.glsl").toShaderProgram()
         }
     }
@@ -789,6 +815,28 @@ class RenderHandler(
         }
     }
 
+    private fun copyRenderToPhoto() {
+        EGL14.eglMakeCurrent(eglDisplay, eglPhotoSurface, eglRenderSurface, eglContext)
+
+        var viewportWidth = width
+        var viewportHeight = height
+
+        if (isPortrait) {
+            viewportWidth = height
+            viewportHeight = width
+        }
+
+        onDrawFrame(
+            renderTexId,
+            renderTexture,
+            Rect(0, 0, viewportWidth, viewportHeight),
+            renderToPhotoShaderProgram!!,
+            false
+        )
+
+        EGL14.eglSwapBuffers(eglDisplay, eglPhotoSurface)
+    }
+
     private fun copyRenderToEncode() {
         EGL14.eglMakeCurrent(eglDisplay, eglEncoderSurface, eglRenderSurface, eglContext)
 
@@ -847,6 +895,25 @@ class RenderHandler(
                 eglDisplay, eglConfig, encoderSurface, surfaceAttribs, 0
             )
             if (eglEncoderSurface == EGL14.EGL_NO_SURFACE) {
+                val error = EGL14.eglGetError()
+                throw RuntimeException(
+                    "Failed to create EGL encoder surface" + ": eglGetError = 0x" + Integer.toHexString(
+                        error
+                    )
+                )
+            }
+        }
+    }
+
+    private fun actionTakePhoto(imageSurface: Surface) {
+        currentlyTakingPicture = true
+        val surfaceAttribs = intArrayOf(EGL14.EGL_NONE)
+        if (eglPhotoSurface == null || eglPhotoSurface == EGL14.EGL_NO_SURFACE) {
+            "--> Creating new eglImageSurface in ${Thread.currentThread()}".e
+            eglPhotoSurface = EGL14.eglCreateWindowSurface(
+                eglDisplay, eglConfig, imageSurface, surfaceAttribs, 0
+            )
+            if (eglPhotoSurface == EGL14.EGL_NO_SURFACE) {
                 val error = EGL14.eglGetError()
                 throw RuntimeException(
                     "Failed to create EGL encoder surface" + ": eglGetError = 0x" + Integer.toHexString(
@@ -927,6 +994,12 @@ class RenderHandler(
         if (eglEncoderSurface != EGL14.EGL_NO_SURFACE && currentlyRecording) {
             copyRenderToEncode()
         }
+
+        /** Copy to the image surface if we're currently taking a photo. */
+        if (eglPhotoSurface != EGL14.EGL_NO_SURFACE && currentlyTakingPicture) {
+            currentlyTakingPicture = false
+            copyRenderToPhoto()
+        }
     }
 
     private fun isHDR(): Boolean {
@@ -957,6 +1030,7 @@ class RenderHandler(
             MSG_CREATE_RESOURCES -> createResources(msg.obj as Surface)
             MSG_DESTROY_WINDOW_SURFACE -> destroyWindowSurface()
             MSG_ACTION_DOWN -> actionDown(msg.obj as Surface)
+            MSG_ACTION_TAKE_PHOTO -> actionTakePhoto(msg.obj as Surface)
             MSG_CLEAR_FRAME_LISTENER -> clearFrameListener()
             MSG_CLEANUP -> cleanup()
             MSG_ON_FRAME_AVAILABLE -> onFrameAvailableImpl(msg.obj as SurfaceTexture)

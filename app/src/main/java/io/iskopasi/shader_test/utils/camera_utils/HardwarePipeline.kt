@@ -128,6 +128,14 @@ class HardwarePipeline(
         )
     }
 
+    override fun actionTakePhoto(imageReaderSurface: Surface) {
+        renderHandler.sendMessage(
+            renderHandler.obtainMessage(
+                RenderHandler.MSG_ACTION_TAKE_PHOTO, 0, 0, imageReaderSurface
+            )
+        )
+    }
+
     override fun setOrientation(orientation: Int) {
         "--> Setting pipeline orientation: $orientation".e
         renderHandler.sendMessage(
@@ -240,7 +248,6 @@ class ShaderProgram(
 //        HardwarePipeline.checkGlError("uMVPMatrixHandle")
 
 
-        "---> ${orientation}".e
         GLES30.glUniform1f(iTimeHandle, timeProgress++)
         HardwarePipeline.checkGlError("iTimeHandle")
         GLES30.glUniform1i(orientationLoc, orientation)

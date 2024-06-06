@@ -57,6 +57,8 @@ abstract class Pipeline(
 
     open fun actionDown(encoderSurface: Surface) {}
 
+    open fun actionTakePhoto(imageReaderSurface: Surface) {}
+
     open fun setOrientation(orientation: Int) {}
 
     open fun setInitialOrientation(orientation: Int) {}

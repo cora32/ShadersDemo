@@ -48,7 +48,7 @@ fun CameraView(controller: DrawerController) {
         "--> creating orientationListener".e
         object : OrientationListener(context) {
             override fun onSimpleOrientationChanged(orientation: Int, currentOrientation: Int) {
-                cameraController?.onOrientationChanged(orientation, currentOrientation)
+                cameraController?.onOrientationChanged(orientation, currentOrientation, context)
             }
         }
     }
@@ -129,7 +129,8 @@ fun CameraView(controller: DrawerController) {
         modifier = Modifier
             .fillMaxSize()
             .clickable {
-                cameraController!!.startVideoRec(context)
+//                cameraController!!.startVideoRec(context)
+                cameraController!!.takePhoto()
             }
     )
 }

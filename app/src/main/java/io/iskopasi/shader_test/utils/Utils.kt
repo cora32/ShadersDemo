@@ -10,6 +10,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Picture
 import android.hardware.camera2.CameraManager
 import android.hardware.display.DisplayManager
+import android.media.ExifInterface
 import android.media.Image
 import android.os.Build
 import android.os.FileUtils
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import io.iskopasi.shader_test.BuildConfig
+import io.iskopasi.shader_test.utils.RealPathUtil.getRealPath
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -51,6 +53,7 @@ import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
 
 val Picture.toBitmap: Bitmap
     get() {
@@ -179,13 +182,40 @@ fun checkPermissions(context: Context) = ContextCompat.checkSelfPermission(
 //    Manifest.permission.WRITE_EXTERNAL_STORAGE
 //) == PackageManager.PERMISSION_GRANTED
 
-fun Image.toBitmap(): Bitmap = planes[0].buffer.let {
-    val bytes = ByteArray(it.remaining())
-    it.get(bytes)
-    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, null)
+fun Image.toBitmap(mode: Int = 0): Bitmap = when (mode) {
+    0 -> use {
+        planes[0].buffer.let {
+            val bytes = ByteArray(it.remaining())
+            it.get(bytes)
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, null)
+        }
+    }
+
+    1 -> {
+        use {
+            planes[0].buffer.let {
+                val pixelStride = planes[0].pixelStride
+                val rowStride = planes[0].rowStride
+                val rowPadding: Int = rowStride - pixelStride * width
+
+                Bitmap.createBitmap(
+                    width + rowPadding / pixelStride,
+                    height,
+                    Bitmap.Config.ARGB_8888
+                ).apply {
+                    it.rewind()
+                    copyPixelsFromBuffer(it)
+                }
+            }
+        }
+    }
+
+    else -> throw Exception("toBitmap: Unknown mode")
 }
 
-fun Image.saveToFile(context: Context) = toBitmap().saveToFile(context)
+fun Image.saveToFile(context: Context) = toBitmap(0).saveToFile(context)
+
+fun Image.saveARGB8888ToFile(context: Context) = toBitmap(1).saveToFile(context)
 
 fun Bitmap.saveToFile(context: Context) {
     val imageStorageAddress = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -194,8 +224,9 @@ fun Bitmap.saveToFile(context: Context) {
         MediaStore.Images.Media.EXTERNAL_CONTENT_URI
     }
 
+    val filename = "shadertoy_${System.currentTimeMillis()}.jpg"
     val imageDetails = ContentValues().apply {
-        put(MediaStore.Images.Media.DISPLAY_NAME, "shadertoy_${System.currentTimeMillis()}.jpg")
+        put(MediaStore.Images.Media.DISPLAY_NAME, filename)
         put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
         put(MediaStore.MediaColumns.DATE_ADDED, System.currentTimeMillis())
     }
@@ -210,6 +241,17 @@ fun Bitmap.saveToFile(context: Context) {
                         100,
                         outStream
                     )
+                getRealPath(context, uri).apply {
+                    "--> Saved to DCIM $this".e
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        ExifInterface(File(this).absoluteFile).apply {
+                            val ert = getAttributeInt(ExifInterface.TAG_ORIENTATION, -1)
+                            "--> ert: $ert".e
+                        }
+                    } else {
+                        TODO("VERSION.SDK_INT < Q")
+                    }
+                }
                 recycle()
             } ?: throw IOException("Failed to get output stream.")
         } ?: throw IOException("Failed to create new MediaStore record.")
