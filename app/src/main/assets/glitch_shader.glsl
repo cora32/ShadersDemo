@@ -108,7 +108,7 @@ void main() {
                 value += texture2D(u_texture, coord) * float(edge[x][y]);
             }
         }
-        value /= 1.0;
+        value /= 2.0;
         value.a = 1.0;
 
         // Removing brightness
@@ -117,9 +117,9 @@ void main() {
         value.g > 0.7 &&
         value.b > 0.7
         ) {
-            value.r = 0.0;
-            value.g = 0.5;
-            value.b = 0.3;
+            value.r = 0.2;
+            //            value.g = 0.6;
+            value.b = 0.2;
 
             if (redFlag == 1) {
                 value.r = 0.9;
@@ -144,9 +144,9 @@ void main() {
         if (isRed) {
             value.r += 0.4;
         }
-        if (isGreen) {
-            value.g += 0.7;
-        }
+        //        if (isGreen) {
+        //            value.g += 0.5;
+        //        }
         if (isBlue) {
             value.b += 0.5;
         }
@@ -157,6 +157,6 @@ void main() {
 
         //        value = texture2D(u_texture, v_textureCoord);
     }
-
+    //    value = texture2D(u_texture, v_textureCoord);
     gl_FragColor = value;
 }

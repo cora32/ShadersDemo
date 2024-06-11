@@ -1,5 +1,6 @@
 package io.iskopasi.shader_test.utils.camera_utils
 
+import android.content.Context
 import android.graphics.Rect
 import android.graphics.SurfaceTexture
 import android.hardware.DataSpace
@@ -24,15 +25,15 @@ import android.os.Message
 import android.util.Log
 import android.util.Range
 import android.util.Size
-import android.util.SparseIntArray
 import android.view.Surface
 import android.view.SurfaceControl
-import android.view.SurfaceView
 import androidx.annotation.RequiresApi
 import androidx.opengl.EGLImageKHR
 import io.iskopasi.shader_test.utils.e
 import io.iskopasi.shader_test.utils.loadShader
+import io.iskopasi.shader_test.utils.toOrientationTag
 import java.nio.IntBuffer
+
 
 const val PQ_STR = "PQ"
 const val LINEAR_STR = "LINEAR"
@@ -82,8 +83,8 @@ class RenderHandler(
     private val transfer: Int,
     private val dynamicRange: Long,
     private val encoder: EncoderWrapper,
-    private val viewFinder: SurfaceView, // Leak?
-    private val initialOrientation: Int
+    private val initialOrientation: Int,
+    private val context: Context
 ) : Handler(looper), SurfaceTexture.OnFrameAvailableListener {
     companion object {
         const val MSG_CREATE_RESOURCES = 0
@@ -164,36 +165,20 @@ class RenderHandler(
         "--> stopRecording called; currentlyRecording = $currentlyRecording".e
     }
 
-    private val ORIENTATIONS: SparseIntArray = SparseIntArray(4).apply {
-        append(Surface.ROTATION_0, 90)
-        append(Surface.ROTATION_90, 0)
-        append(Surface.ROTATION_180, 270)
-        append(Surface.ROTATION_270, 180)
-    }
-
-    private fun getOrientation(rotation: Int): Int {
-        // Sensor orientation is 90 for most devices, or 270 for some devices (eg. Nexus 5X)
-        // We have to take that into account and rotate JPEG properly.
-        // For devices with orientation of 90, we simply return our mapping from ORIENTATIONS.
-        // For devices with orientation of 270, we need to rotate the JPEG 180 degrees.
-        return (ORIENTATIONS.get(rotation) + 90 + 270) % 360
-    }
     fun createRecordRequest(
         session: CameraCaptureSession, previewStabilization: Boolean
     ): CaptureRequest {
-
-        "--> Creating createRecordRequest".e
         cvResourcesCreated.block()
 
         // Capture request holds references to target surfaces
-        return session.device.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
+        return session.device.createCaptureRequest(CameraDevice.TEMPLATE_VIDEO_SNAPSHOT).apply {
             // Add the preview surface target
             addTarget(cameraSurface)
 
             set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(fps, fps))
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-//                set(CaptureRequest.CONTROL_ZOOM_RATIO, 0.6f)
-                set(CaptureRequest.CONTROL_ZOOM_RATIO, 1f)
+                set(CaptureRequest.CONTROL_ZOOM_RATIO, 0.6f)
+//                set(CaptureRequest.CONTROL_ZOOM_RATIO, 1f)
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -202,14 +187,16 @@ class RenderHandler(
                     CaptureRequest.SENSOR_PIXEL_MODE_MAXIMUM_RESOLUTION
                 )
             }
-            "--> settinfgg hint: orientation: $orientation ${getOrientation(orientation)}".e
-            set(CaptureRequest.JPEG_ORIENTATION, getOrientation(orientation))
+            // That just doesn't work on Xiaomi
+            set(CaptureRequest.JPEG_ORIENTATION, orientation.toOrientationTag)
 
-            if (previewStabilization) {
-                set(
-                    CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
-                    CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_PREVIEW_STABILIZATION
-                )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (previewStabilization) {
+                    set(
+                        CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
+                        CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_PREVIEW_STABILIZATION
+                    )
+                }
             }
         }.build()
     }
@@ -460,18 +447,18 @@ class RenderHandler(
         cameraTexture.setDefaultBufferSize(width, height)
         cameraSurface = Surface(cameraTexture)
 
-        if (isHDR() and (transfer == HLG_WORKAROUND_ID)) {
-            // Communicating HLG content may not be supported on EGLSurface in API 33, as there
-            // is no EGL extension for communicating the surface color space. Instead, create
-            // a child SurfaceControl whose parent is the viewFinder's SurfaceView and push
-            // buffers directly to the SurfaceControl.
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                contentSurfaceControl = SurfaceControl.Builder().setName("HardwarePipeline")
-                    .setParent(viewFinder.surfaceControl).setHidden(false).build()
-            }
-            windowTexId = createTexId()
-            windowFboId = createFboId()
-        }
+//        if (isHDR() and (transfer == HLG_WORKAROUND_ID)) {
+//            // Communicating HLG content may not be supported on EGLSurface in API 33, as there
+//            // is no EGL extension for communicating the surface color space. Instead, create
+//            // a child SurfaceControl whose parent is the viewFinder's SurfaceView and push
+//            // buffers directly to the SurfaceControl.
+//            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+//                contentSurfaceControl = SurfaceControl.Builder().setName("HardwarePipeline")
+//                    .setParent(viewFinder.surfaceControl).setHidden(false).build()
+//            }
+//            windowTexId = createTexId()
+//            windowFboId = createFboId()
+//        }
 
         renderTexId = createTexture()
         renderTexture = SurfaceTexture(renderTexId)
@@ -517,11 +504,11 @@ class RenderHandler(
             vertexShader = createShader(GLES30.GL_VERTEX_SHADER, TRANSFORM_VSHADER)
             cameraToRenderShaderProgram = PASSTHROUGH_FSHADER.toShaderProgram()
             renderToPreviewShaderProgram =
-                viewFinder.context.loadShader("glitch_shader.glsl").toShaderProgram()
+                context.loadShader("glitch_shader.glsl").toShaderProgram()
             renderToEncodeShaderProgram =
-                viewFinder.context.loadShader("glitch_shader.glsl").toShaderProgram()
+                context.loadShader("glitch_shader.glsl").toShaderProgram()
             renderToPhotoShaderProgram =
-                viewFinder.context.loadShader("glitch_shader.glsl").toShaderProgram()
+                context.loadShader("glitch_shader.glsl").toShaderProgram()
         }
     }
 
@@ -818,13 +805,13 @@ class RenderHandler(
     private fun copyRenderToPhoto() {
         EGL14.eglMakeCurrent(eglDisplay, eglPhotoSurface, eglRenderSurface, eglContext)
 
-        var viewportWidth = width
-        var viewportHeight = height
+        var viewportWidth = height
+        var viewportHeight = width
 
-        if (isPortrait) {
-            viewportWidth = height
-            viewportHeight = width
-        }
+//        if (isPortrait) {
+//            viewportWidth = height
+//            viewportHeight = width
+//        }
 
         onDrawFrame(
             renderTexId,

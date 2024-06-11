@@ -25,8 +25,8 @@ import android.os.Looper
 import android.util.Size
 import android.view.Surface
 import android.view.SurfaceHolder
-import android.view.SurfaceView
 import android.widget.Toast
+import androidx.compose.runtime.mutableStateOf
 import androidx.core.content.ContextCompat
 import androidx.core.os.ExecutorCompat
 import io.iskopasi.shader_test.utils.bg
@@ -34,7 +34,8 @@ import io.iskopasi.shader_test.utils.cameraManager
 import io.iskopasi.shader_test.utils.createFile
 import io.iskopasi.shader_test.utils.e
 import io.iskopasi.shader_test.utils.saveARGB8888ToFile
-import io.iskopasi.shader_test.utils.saveToDcim
+import io.iskopasi.shader_test.utils.saveVideoToDcim
+import io.iskopasi.shader_test.utils.setExifOrientation
 import io.iskopasi.shader_test.utils.share
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -50,22 +51,21 @@ interface InitCallback {
 }
 
 class CameraController2(
+    val context: Context,
     isFront: Boolean,
-    context: Context,
-    view: AutoFitSurfaceView,
-    surface: Surface,
     orientation: Int
 ) {
-    var isInitialized: Boolean = false
-    private var previewSize: Size
+    val isFrontState = mutableStateOf(isFront)
+    var isInitialized = mutableStateOf(false)
+    var isReadyToPhoto = mutableStateOf(false)
+    var isReadyToVideo = mutableStateOf(false)
+    var recordingStarted = mutableStateOf(false)
+
+    private lateinit var previewSize: Size
     private var device: CameraDevice? = null
     private var cameraThread: HandlerThread? = null
     private var cameraHandler: Handler? = null
 
-    @Volatile
-    private var recordingStarted = false
-
-    @Volatile
     private var recordingComplete = false
     private var recordingStartMillis = 0L
     private var width = 0
@@ -76,6 +76,7 @@ class CameraController2(
     private var audioSampleRate = 0
     private var initCallback: InitCallback? = null
     private var mOrientation: Int = orientation
+    private var imageReader: ImageReader? = null
 
     private val RECORDER_VIDEO_BITRATE: Int = 10_000_000
     private val MIN_REQUIRED_RECORDING_TIME_MILLIS: Long = 1000L
@@ -86,27 +87,32 @@ class CameraController2(
         DynamicRangeProfiles.PUBLIC_MAX
 
     /** [CameraCharacteristics] corresponding to the provided Camera ID */
-    private var characteristics: CameraCharacteristics
+    private lateinit var characteristics: CameraCharacteristics
     private lateinit var encoder: EncoderWrapper
     private lateinit var session: CameraCaptureSession
     private lateinit var pipeline: Pipeline
     private lateinit var outputFile: File
     private lateinit var recordRequest: CaptureRequest
-    private var imageReader: ImageReader? = null
+    private lateinit var surface: Surface
+    private lateinit var view: AutoFitSurfaceView
 
-    private val isPortrait: Boolean
-        get() = mOrientation == 0 || mOrientation == 180
+
+//    private val isPortrait: Boolean
+//        get() = mOrientation == 0 || mOrientation == 180
 
     /** Condition variable for blocking until the recording completes */
     private val cvRecordingStarted = ConditionVariable(false)
 
-    init {
-        isInitialized = false
+    fun init(mSurface: Surface, mView: AutoFitSurfaceView): CameraController2 {
+        surface = mSurface
+        view = mView
+
+        isInitialized.value = false
         startThread()
 
         val cameraId = getCameraId(
             context,
-            if (isFront) CameraMetadata.LENS_FACING_FRONT else CameraMetadata.LENS_FACING_BACK
+            if (isFrontState.value) CameraMetadata.LENS_FACING_FRONT else CameraMetadata.LENS_FACING_BACK
         )
 
         characteristics = getCharacteristics(context, cameraId)
@@ -115,18 +121,21 @@ class CameraController2(
         previewSize = getPreviewOutputSize(
             view.display, characteristics, SurfaceHolder::class.java
         )
-        "View finder size: ${view.width} x ${view.height}".e
         "Selected preview size: $previewSize".e
         view.setAspectRatio(previewSize.width, previewSize.height)
 
         bg {
             setRecorderParams(cameraId)
-            initializePipeline(context, previewSize, view, surface = surface)
+            initializePipeline(context, previewSize, surface = surface)
             initializeCamera(context, cameraId)
 
             initCallback?.onInitialized()
-            isInitialized = true
+            isInitialized.value = true
+            isReadyToPhoto.value = true
+            isReadyToVideo.value = true
         }
+
+        return this
     }
 
     fun addCallbackListener(listener: InitCallback?) {
@@ -146,7 +155,7 @@ class CameraController2(
     }
 
     fun onStop() {
-        isInitialized = false
+        isInitialized.value = false
         "--> onStop".e
 
         try {
@@ -281,7 +290,7 @@ class CameraController2(
             }
 
     private fun isCurrentlyRecording(): Boolean {
-        return recordingStarted && !recordingComplete
+        return recordingStarted.value && !recordingComplete
     }
 
 
@@ -382,7 +391,6 @@ class CameraController2(
     private fun initializePipeline(
         context: Context,
         previewSize: Size,
-        view: SurfaceView,
         surface: Surface
     ) {
         outputFile = context.applicationContext.createFile("mp4")
@@ -413,8 +421,8 @@ class CameraController2(
             dynamicRange,
             characteristics,
             encoder,
-            view,
-            orientation = mOrientation
+            orientation = mOrientation,
+            context.applicationContext
         )
         pipeline.setPreviewSize(previewSize)
         pipeline.createResources(surface)
@@ -422,21 +430,23 @@ class CameraController2(
 
     private fun createImageReader(context: Context) {
 
-        val mSensorOrientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION)
-        "--> mSensorOrientation: $mSensorOrientation".e
+//        val mSensorOrientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION)
+//        "--> mSensorOrientation: $mSensorOrientation".e
 
-
+        imageReader?.setOnImageAvailableListener(null, null)
         imageReader?.close()
         imageReader = ImageReader.newInstance(
-            if (isPortrait) height else width,
-            if (isPortrait) width else height,
+//            if (isPortrait) height else width,
+//            if (isPortrait) width else height,
+            height,
+            width,
             PixelFormat.RGBA_8888,
-            1
+            2
         ).apply {
             setOnImageAvailableListener(
                 { reader ->
                     reader.acquireLatestImage().use { image ->
-                        image.saveARGB8888ToFile(context)
+                        image.saveARGB8888ToFile(context)?.setExifOrientation(mOrientation)
                     }
                 },
                 cameraHandler
@@ -452,7 +462,7 @@ class CameraController2(
     }
 
     fun takePhoto() = bg {
-        if (!isInitialized) {
+        if (!isInitialized.value) {
             "--> CameraController not initialized yet".e
             return@bg
         }
@@ -463,12 +473,12 @@ class CameraController2(
     }
 
     fun startVideoRec(context: Context) = bg {
-        if (!isInitialized) {
+        if (!isInitialized.value) {
             "--> CameraController not initialized yet".e
             return@bg
         }
 
-        if (!recordingStarted) {
+        if (!recordingStarted.value) {
             "--> Starting recording".e
             recordingStartMillis = System.currentTimeMillis()
 
@@ -477,7 +487,7 @@ class CameraController2(
             pipeline.actionDown(encoderSurface)
 
             // Finalizes encoder setup and starts recording
-            recordingStarted = true
+            recordingStarted.value = true
             encoder.start()
             cvRecordingStarted.open()
             pipeline.startRecording()
@@ -500,16 +510,7 @@ class CameraController2(
 
             stopRecording()
 
-            /* Wait until the session signals onReady */
-//            cvRecordingComplete.block()
-
-            // Unlocks screen rotation after recording finished
-//            requireActivity().requestedOrientation =
-//                ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-
-//            pipeline.cleanup()
-
-            recordingStarted = false
+            recordingStarted.value = false
             "--> Recording stopped. Output file: $outputFile".e
             if (encoder.shutdown()) {
                 // Broadcasts the media file to the rest of the system
@@ -519,12 +520,9 @@ class CameraController2(
 
                 if (outputFile.exists()) {
                     outputFile.share(context)
-                    outputFile.saveToDcim(context)
+                    outputFile.saveVideoToDcim(context)
 //                    outputFile.play(context)
                 } else {
-                    // TODO:
-                    //  1. Move the callback to ACTION_DOWN, activating it on the second press
-                    //  2. Add an animation to the button before the user can press it again
                     Handler(Looper.getMainLooper()).post {
                         Toast.makeText(
                             context, "error_file_not_found",
@@ -556,11 +554,19 @@ class CameraController2(
             Surface.ROTATION_270 -> mOrientation = 270
         }
 
-        if (isInitialized) {
+        if (isInitialized.value) {
             pipeline.setOrientation(mOrientation)
-
-            // Have to recreate imageReader because it cannot change its size once initialized
-            createImageReader(context)
         }
+    }
+
+    fun onChangeCamera() {
+        isFrontState.value = !isFrontState.value
+
+        close()
+        init(surface, view)
+    }
+
+    fun close() {
+        onStop()
     }
 }

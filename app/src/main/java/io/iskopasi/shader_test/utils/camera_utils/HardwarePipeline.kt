@@ -16,6 +16,7 @@
 
 package io.iskopasi.shader_test.utils.camera_utils
 
+import android.content.Context
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CaptureRequest
@@ -25,7 +26,6 @@ import android.os.HandlerThread
 import android.util.Log
 import android.util.Size
 import android.view.Surface
-import android.view.SurfaceView
 import io.iskopasi.shader_test.utils.bg
 import io.iskopasi.shader_test.utils.e
 import java.nio.ByteBuffer
@@ -43,10 +43,10 @@ class HardwarePipeline(
     dynamicRange: Long,
     characteristics: CameraCharacteristics,
     encoder: EncoderWrapper,
-    viewFinder: SurfaceView,
     orientation: Int,
+    context: Context
 ) : Pipeline(
-    width, height, fps, filterOn, dynamicRange, characteristics, encoder, viewFinder
+    width, height, fps, filterOn, dynamicRange, characteristics, encoder
 ) {
     private val renderThread: HandlerThread by lazy {
         val renderThread = HandlerThread("Camera2Video.RenderThread ${Random.nextInt()}")
@@ -63,8 +63,8 @@ class HardwarePipeline(
         transfer,
         dynamicRange,
         encoder,
-        viewFinder,
-        orientation
+        orientation,
+        context
     )
 
     private fun stopThread() {

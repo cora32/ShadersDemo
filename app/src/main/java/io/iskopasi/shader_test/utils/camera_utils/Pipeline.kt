@@ -21,7 +21,6 @@ import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CaptureRequest
 import android.util.Size
 import android.view.Surface
-import android.view.SurfaceView
 
 abstract class Pipeline(
     protected val width: Int,
@@ -31,7 +30,6 @@ abstract class Pipeline(
     dynamicRange: Long,
     characteristics: CameraCharacteristics,
     encoder: EncoderWrapper,
-    viewFinder: SurfaceView
 ) {
     open fun createPreviewRequest(
         session: CameraCaptureSession,

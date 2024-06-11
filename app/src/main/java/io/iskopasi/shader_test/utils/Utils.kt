@@ -17,6 +17,8 @@ import android.os.FileUtils
 import android.os.PowerManager
 import android.provider.MediaStore
 import android.util.Log
+import android.util.SparseIntArray
+import android.view.Surface
 import android.view.WindowManager
 import android.webkit.MimeTypeMap
 import androidx.annotation.RequiresApi
@@ -61,9 +63,7 @@ val Picture.toBitmap: Bitmap
             Bitmap.createBitmap(this)
         } else {
             val bitmap = Bitmap.createBitmap(
-                this.width,
-                this.height,
-                Bitmap.Config.ARGB_8888
+                this.width, this.height, Bitmap.Config.ARGB_8888
             )
             val canvas = android.graphics.Canvas(bitmap)
             canvas.drawColor(android.graphics.Color.WHITE)
@@ -80,33 +80,29 @@ fun Dp.toPx(): Float {
 }
 
 @Stable
-fun Modifier.screenshot(mutableStateHolder: MutableState<Bitmap>) =
-    this.drawWithCache {
-        val width = this.size.width.toInt()
-        val height = this.size.height.toInt()
-        val picture = Picture()
+fun Modifier.screenshot(mutableStateHolder: MutableState<Bitmap>) = this.drawWithCache {
+    val width = this.size.width.toInt()
+    val height = this.size.height.toInt()
+    val picture = Picture()
 
-        onDrawWithContent {
-            val pictureCanvas =
-                Canvas(
-                    picture
-                        .beginRecording(
-                            width,
-                            height
-                        )
-                )
+    onDrawWithContent {
+        val pictureCanvas = Canvas(
+            picture.beginRecording(
+                width, height
+            )
+        )
 
-            draw(this, this.layoutDirection, pictureCanvas, size) {
-                this@onDrawWithContent.drawContent()
-            }
-            picture.endRecording()
+        draw(this, this.layoutDirection, pictureCanvas, size) {
+            this@onDrawWithContent.drawContent()
+        }
+        picture.endRecording()
 
-            drawIntoCanvas { canvas ->
-                canvas.nativeCanvas.drawPicture(picture)
-                mutableStateHolder.value = picture.toBitmap
-            }
+        drawIntoCanvas { canvas ->
+            canvas.nativeCanvas.drawPicture(picture)
+            mutableStateHolder.value = picture.toBitmap
         }
     }
+}
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 fun Modifier.applyShader(shader: Shaders) = composed {
@@ -155,12 +151,9 @@ fun main(block: suspend CoroutineScope.() -> Unit): Job = CoroutineScope(Dispatc
     block(this)
 }
 
-fun Context.loadShader(filepath: String): String = assets
-    .open(filepath)
-    .bufferedReader().use {
+fun Context.loadShader(filepath: String): String = assets.open(filepath).bufferedReader().use {
         it.readText()
-    }
-    .trimIndent()
+}.trimIndent()
 
 val String.e: String
     get() {
@@ -170,12 +163,9 @@ val String.e: String
 
 
 fun checkPermissions(context: Context) = ContextCompat.checkSelfPermission(
-    context,
-    Manifest.permission.CAMERA
-) == PackageManager.PERMISSION_GRANTED
-        && ContextCompat.checkSelfPermission(
-    context,
-    Manifest.permission.RECORD_AUDIO
+    context, Manifest.permission.CAMERA
+) == PackageManager.PERMISSION_GRANTED && ContextCompat.checkSelfPermission(
+    context, Manifest.permission.RECORD_AUDIO
 ) == PackageManager.PERMISSION_GRANTED
 //        && ContextCompat.checkSelfPermission(
 //    context,
@@ -183,41 +173,79 @@ fun checkPermissions(context: Context) = ContextCompat.checkSelfPermission(
 //) == PackageManager.PERMISSION_GRANTED
 
 fun Image.toBitmap(mode: Int = 0): Bitmap = when (mode) {
-    0 -> use {
+    0 ->
         planes[0].buffer.let {
             val bytes = ByteArray(it.remaining())
             it.get(bytes)
+            // decodeByteArray ignores the EXIF flag
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, null)
         }
-    }
 
     1 -> {
-        use {
             planes[0].buffer.let {
                 val pixelStride = planes[0].pixelStride
                 val rowStride = planes[0].rowStride
                 val rowPadding: Int = rowStride - pixelStride * width
 
                 Bitmap.createBitmap(
-                    width + rowPadding / pixelStride,
-                    height,
-                    Bitmap.Config.ARGB_8888
+                    width + rowPadding / pixelStride, height, Bitmap.Config.ARGB_8888
                 ).apply {
                     it.rewind()
                     copyPixelsFromBuffer(it)
                 }
             }
-        }
     }
 
     else -> throw Exception("toBitmap: Unknown mode")
 }
 
-fun Image.saveToFile(context: Context) = toBitmap(0).saveToFile(context)
+fun Image.saveToFile(context: Context) = toBitmap(0).saveBmpToFile(context)
 
-fun Image.saveARGB8888ToFile(context: Context) = toBitmap(1).saveToFile(context)
+fun Image.saveARGB8888ToFile(context: Context) = toBitmap(1).saveBmpToFile(context)
 
-fun Bitmap.saveToFile(context: Context) {
+fun File.copyToDcim(context: Context): File? {
+    val storageAddress = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+    } else {
+        MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+    }
+
+    val filename = "shadertoy_${System.currentTimeMillis()}.${this@copyToDcim.extension}"
+    val details = ContentValues().apply {
+        put(
+            MediaStore.Video.Media.DISPLAY_NAME,
+            filename
+        )
+        put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+        put(MediaStore.MediaColumns.DATE_ADDED, System.currentTimeMillis())
+    }
+
+    context.contentResolver.apply {
+        insert(storageAddress, details)?.let { uri ->
+            openOutputStream(uri)?.use { outStream ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    this@copyToDcim.inputStream().use {
+                        FileUtils.copy(it, outStream)
+                    }
+                } else {
+                    outStream.write(this@copyToDcim.readBytes())
+                }
+
+//                this@saveToDcim.delete()
+
+                return File(getRealPath(context, uri)!!).apply {
+                    "--> Saved to DCIM ${this.absoluteFile}"
+                    val r3 = getExifOrientation()
+                    "--> r3: $r3".e
+                }
+            } ?: throw IOException("Failed to get output stream.")
+        } ?: throw IOException("Failed to create new MediaStore record.")
+    }
+
+    return null
+}
+
+fun Bitmap.saveBmpToFile(context: Context): File? {
     val imageStorageAddress = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
     } else {
@@ -228,6 +256,7 @@ fun Bitmap.saveToFile(context: Context) {
     val imageDetails = ContentValues().apply {
         put(MediaStore.Images.Media.DISPLAY_NAME, filename)
         put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+        put(MediaStore.MediaColumns.ORIENTATION, "90")
         put(MediaStore.MediaColumns.DATE_ADDED, System.currentTimeMillis())
     }
 
@@ -235,40 +264,30 @@ fun Bitmap.saveToFile(context: Context) {
     context.contentResolver.apply {
         insert(imageStorageAddress, imageDetails)?.let { uri ->
             openOutputStream(uri)?.use { outStream ->
-                val isBitmapCompressed =
-                    compress(
-                        Bitmap.CompressFormat.JPEG,
-                        100,
-                        outStream
-                    )
-                getRealPath(context, uri).apply {
-                    "--> Saved to DCIM $this".e
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        ExifInterface(File(this).absoluteFile).apply {
-                            val ert = getAttributeInt(ExifInterface.TAG_ORIENTATION, -1)
-                            "--> ert: $ert".e
-                        }
-                    } else {
-                        TODO("VERSION.SDK_INT < Q")
-                    }
-                }
+                val isBitmapCompressed = compress(
+                    Bitmap.CompressFormat.JPEG, 100, outStream
+                )
+//                File(getRealPath(context, uri)!!)
                 recycle()
+
+                val file = getRealPath(context, uri)?.let { File(it) }
+                "????????????? ${file?.absoluteFile}".e
+                return file?.absoluteFile
             } ?: throw IOException("Failed to get output stream.")
         } ?: throw IOException("Failed to create new MediaStore record.")
     }
+
+    return null
 }
 
 fun File.share(context: Context) {
     val uri = FileProvider.getUriForFile(
-        context,
-        BuildConfig.APPLICATION_ID + ".provider",
-        this
+        context, BuildConfig.APPLICATION_ID + ".provider", this
     )
     ContextCompat.startActivity(context.applicationContext, Intent(Intent.ACTION_SEND).apply {
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         setType(
-            MimeTypeMap.getSingleton()
-                .getMimeTypeFromExtension(this@share.extension)
+            MimeTypeMap.getSingleton().getMimeTypeFromExtension(this@share.extension)
         )
         putExtra(Intent.EXTRA_STREAM, uri)
         setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -277,18 +296,14 @@ fun File.share(context: Context) {
 
 fun File.play(context: Context) {
     val uri = FileProvider.getUriForFile(
-        context,
-        "${BuildConfig.APPLICATION_ID}.provider",
-        this
+        context, "${BuildConfig.APPLICATION_ID}.provider", this
     )
     // Launch external activity via intent to play video recorded using our provider
     ContextCompat.startActivity(context, Intent().apply {
         action = Intent.ACTION_VIEW
-        type = MimeTypeMap.getSingleton()
-            .getMimeTypeFromExtension(this@play.extension)
+        type = MimeTypeMap.getSingleton().getMimeTypeFromExtension(this@play.extension)
         data = uri
-        flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                Intent.FLAG_ACTIVITY_CLEAR_TOP
+        flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_CLEAR_TOP
     }, null)
 }
 
@@ -299,20 +314,21 @@ fun Context.createFile(extension: String): File {
     }
 }
 
-fun File.saveToDcim(context: Context): File? {
+fun File.saveVideoToDcim(context: Context): File? {
     val storageAddress = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
     } else {
         MediaStore.Video.Media.EXTERNAL_CONTENT_URI
     }
 
-    val filename = "shadertoy_${System.currentTimeMillis()}.${this@saveToDcim.extension}"
+    val filename = "shadertoy_${System.currentTimeMillis()}.${this@saveVideoToDcim.extension}"
     val details = ContentValues().apply {
         put(
-            MediaStore.Video.Media.DISPLAY_NAME,
-            filename
+            MediaStore.Video.Media.DISPLAY_NAME, filename
         )
-        put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
+        put(
+            MediaStore.MediaColumns.MIME_TYPE, "video/mp4"
+        )
         put(MediaStore.MediaColumns.DATE_ADDED, System.currentTimeMillis())
     }
 
@@ -320,11 +336,11 @@ fun File.saveToDcim(context: Context): File? {
         insert(storageAddress, details)?.let { uri ->
             openOutputStream(uri)?.use { outStream ->
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    this@saveToDcim.inputStream().use {
+                    this@saveVideoToDcim.inputStream().use {
                         FileUtils.copy(it, outStream)
                     }
                 } else {
-                    outStream.write(this@saveToDcim.readBytes())
+                    outStream.write(this@saveVideoToDcim.readBytes())
                 }
 
 //                this@saveToDcim.delete()
@@ -358,3 +374,50 @@ val Context.rotation: Int
 //            windowManager!!.defaultDisplay.rotation
 //        }
     }
+
+val ORIENTATIONS: SparseIntArray = SparseIntArray(4).apply {
+    append(Surface.ROTATION_0, 90)
+    append(Surface.ROTATION_90, 0)
+    append(Surface.ROTATION_180, 270)
+    append(Surface.ROTATION_270, 180)
+}
+
+val Int.toOrientationTag: Int
+    get() {
+        // Sensor orientation is 90 for most devices, or 270 for some devices (eg. Nexus 5X)
+        // We have to take that into account and rotate JPEG properly.
+        // For devices with orientation of 90, we simply return our mapping from ORIENTATIONS.
+        // For devices with orientation of 270, we need to rotate the JPEG 180 degrees.
+        return (ORIENTATIONS.get(this) + 90 + 270) % 360
+    }
+
+/**
+ * That just doesn't work on my Xiaomi. Gallery ignores TAG_ORIENTATION
+ */
+fun File.setExifOrientation(orientation: Int) {
+    // If the result is a JPEG file, update EXIF metadata with orientation info
+    try {
+        if (extension == "jpg") {
+            ExifInterface(absolutePath).apply {
+                setAttribute(
+                    ExifInterface.TAG_ORIENTATION, "${orientation.toOrientationTag}"
+                )
+                saveAttributes()
+            }
+            "--> ${this.absoluteFile} TAG_ORIENTATION: ${getExifOrientation()}".e
+        }
+    } catch (ex: Exception) {
+        "--> setExifOrientation ex: $ex".e
+    }
+}
+
+fun File.getExifOrientation(): Int {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        return ExifInterface(absoluteFile).getAttributeInt(ExifInterface.TAG_ORIENTATION, -1)
+            .apply {
+                "--> $absoluteFile has orientation: ${this@apply}".e
+            }
+    }
+
+    return -1
+}
