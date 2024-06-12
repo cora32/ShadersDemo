@@ -8,6 +8,7 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -33,9 +34,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -171,6 +174,12 @@ fun Controls(cameraController: CameraController2, view: AutoFitSurfaceView) {
     val shape = remember {
         RoundedCornerShape(16.dp)
     }
+
+    val rotation: Float by animateFloatAsState(
+        -cameraController.mOrientation.value.toFloat(),
+        label = ""
+    )
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceEvenly,
@@ -200,7 +209,9 @@ fun Controls(cameraController: CameraController2, view: AutoFitSurfaceView) {
                 Icons.Rounded.PhotoCamera,
                 "",
                 tint = if (cameraController.isReadyToPhoto.value) Color.White else Color.Gray,
-                modifier = Modifier.size(38.dp)
+                modifier = Modifier
+                    .size(38.dp)
+                    .rotate(rotation)
             )
         }
         IconButton(
@@ -212,7 +223,9 @@ fun Controls(cameraController: CameraController2, view: AutoFitSurfaceView) {
                 else Icons.Rounded.PhotoCameraBack,
                 "",
                 tint = if (cameraController.isInitialized.value) Color.White else Color.Gray,
-                modifier = Modifier.size(38.dp)
+                modifier = Modifier
+                    .size(38.dp)
+                    .rotate(rotation)
             )
         }
         IconButton(
@@ -232,11 +245,17 @@ fun Controls(cameraController: CameraController2, view: AutoFitSurfaceView) {
                 else Icons.Rounded.Videocam,
                 "",
                 tint = if (cameraController.isInitialized.value) if (cameraController.recordingStarted.value) Color.Red else Color.White else Color.Gray,
-                modifier = Modifier.size(38.dp)
+                modifier = Modifier
+                    .size(38.dp)
+                    .rotate(rotation)
             )
         }
     }
 }
+
+//private fun Float.animate(): Float {
+//    TODO("Not yet implemented")
+//}
 
 private fun AutoFitSurfaceView.blink() {
     post {

@@ -64,6 +64,7 @@ class CameraController2(
     var isReadyToVideo = mutableStateOf(false)
     var recordingStarted = mutableStateOf(false)
     var timerValue = mutableStateOf("")
+    var mOrientation = mutableStateOf(orientation)
 
     private var myTimer: Timer? = null
     private lateinit var previewSize: Size
@@ -80,7 +81,6 @@ class CameraController2(
     private var audioBitrate = 0
     private var audioSampleRate = 0
     private var initCallback: InitCallback? = null
-    private var mOrientation: Int = orientation
     private var imageReader: ImageReader? = null
 
     private val RECORDER_VIDEO_BITRATE: Int = 10_000_000
@@ -411,7 +411,7 @@ class CameraController2(
             bitrate,
             fps,
             dynamicRange,
-            mOrientation,
+            mOrientation.value,
             outputFile,
             useMediaRecorder = true,
             videoCodec,
@@ -431,7 +431,7 @@ class CameraController2(
             dynamicRange,
             characteristics,
             encoder,
-            orientation = mOrientation,
+            orientation = mOrientation.value,
             context.applicationContext
         )
         pipeline.setPreviewSize(previewSize)
@@ -456,7 +456,7 @@ class CameraController2(
             setOnImageAvailableListener(
                 { reader ->
                     reader.acquireLatestImage().use { image ->
-                        image.saveARGB8888ToFile(context)?.setExifOrientation(mOrientation)
+                        image.saveARGB8888ToFile(context)?.setExifOrientation(mOrientation.value)
                     }
                 },
                 cameraHandler
@@ -486,8 +486,8 @@ class CameraController2(
             "--> Starting recording".e
             recordingStartMillis = System.currentTimeMillis()
 
-            encoder.setInitialOrientation(mOrientation)
-            pipeline.setInitialOrientation(mOrientation)
+            encoder.setInitialOrientation(mOrientation.value)
+            pipeline.setInitialOrientation(mOrientation.value)
             pipeline.actionDown(encoder.getInputSurface())
 
             // Finalizes encoder setup and starts recording
@@ -565,14 +565,14 @@ class CameraController2(
     fun onOrientationChanged(orientation: Int, currentOrientation: Int, context: Context) {
         "--> Setting orientation: $mOrientation".e
         when (currentOrientation) {
-            Surface.ROTATION_0 -> mOrientation = 0
-            Surface.ROTATION_90 -> mOrientation = 90
-            Surface.ROTATION_180 -> mOrientation = 180
-            Surface.ROTATION_270 -> mOrientation = 270
+            Surface.ROTATION_0 -> mOrientation.value = 0
+            Surface.ROTATION_90 -> mOrientation.value = 90
+            Surface.ROTATION_180 -> mOrientation.value = 180
+            Surface.ROTATION_270 -> mOrientation.value = 270
         }
 
         if (isInitialized.value) {
-            pipeline.setOrientation(mOrientation)
+            pipeline.setOrientation(mOrientation.value)
         }
     }
 
