@@ -13,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -39,6 +41,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toDrawable
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import io.iskopasi.shader_test.DrawerController
@@ -144,9 +147,21 @@ fun CameraView(controller: DrawerController) {
     )
 
     Box {
-        Box(modifier = Modifier.align(Alignment.BottomCenter)) { Controls(cameraController, view) }
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
+//            if(cameraController.recordingStarted.value) Text(text = cameraController.timerValue.value) else Box{}
+            TimerView(cameraController)
+            Controls(cameraController, view)
+        }
         viewFinder
     }
+}
+
+@Composable
+fun TimerView(cameraController: CameraController2) {
+    Text(text = cameraController.timerValue.value)
 }
 
 @Composable
@@ -176,6 +191,7 @@ fun Controls(cameraController: CameraController2, view: AutoFitSurfaceView) {
                     delay(200L)
                     cameraController.isReadyToPhoto.value = true
                 }
+                view.blink()
             },
             enabled = cameraController.isReadyToPhoto.value
         ) {
@@ -214,10 +230,20 @@ fun Controls(cameraController: CameraController2, view: AutoFitSurfaceView) {
                 if (cameraController.recordingStarted.value) Icons.Rounded.Stop
                 else Icons.Rounded.Videocam,
                 "",
-                tint = if (cameraController.isInitialized.value) Color.White else Color.Gray,
+                tint = if (cameraController.isInitialized.value) if (cameraController.recordingStarted.value) Color.Red else Color.White else Color.Gray,
                 modifier = Modifier.size(38.dp)
             )
         }
+    }
+}
+
+private fun AutoFitSurfaceView.blink() {
+    post {
+        background = android.graphics.Color.argb(150, 255, 255, 255).toDrawable()
+
+        postDelayed({
+            background = null
+        }, 50L)
     }
 }
 

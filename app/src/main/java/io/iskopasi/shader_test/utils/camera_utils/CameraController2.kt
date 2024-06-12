@@ -22,6 +22,7 @@ import android.os.ConditionVariable
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
+import android.text.format.DateUtils
 import android.util.Size
 import android.view.Surface
 import android.view.SurfaceHolder
@@ -40,6 +41,8 @@ import io.iskopasi.shader_test.utils.share
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.File
+import java.util.Timer
+import kotlin.concurrent.timer
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
@@ -60,7 +63,9 @@ class CameraController2(
     var isReadyToPhoto = mutableStateOf(false)
     var isReadyToVideo = mutableStateOf(false)
     var recordingStarted = mutableStateOf(false)
+    var timerValue = mutableStateOf("")
 
+    private var myTimer: Timer? = null
     private lateinit var previewSize: Size
     private var device: CameraDevice? = null
     private var cameraThread: HandlerThread? = null
@@ -153,6 +158,7 @@ class CameraController2(
 
     fun onStop() {
         isInitialized.value = false
+        stopTimer()
         "--> onStop".e
 
         try {
@@ -471,6 +477,7 @@ class CameraController2(
         }
 
         if (!recordingStarted.value) {
+            startTimer()
             "--> Starting recording".e
             recordingStartMillis = System.currentTimeMillis()
 
@@ -484,6 +491,7 @@ class CameraController2(
             cvRecordingStarted.open()
             pipeline.startRecording()
         } else {
+            stopTimer()
             cvRecordingStarted.block()
 
             /* Wait for at least one frame to process so we don't have an empty video */
@@ -534,6 +542,18 @@ class CameraController2(
             // Resetting MediaRecorder with new file
             outputFile = context.applicationContext.createFile("mp4")
             encoder.setOutputFile(outputFile)
+        }
+    }
+
+    private fun stopTimer() {
+        myTimer?.cancel()
+        timerValue.value = ""
+    }
+
+    private fun startTimer() {
+        myTimer = timer(initialDelay = 0, period = 1000L) {
+            val totalSec = (System.currentTimeMillis() - recordingStartMillis) / 1000
+            timerValue.value = DateUtils.formatElapsedTime(totalSec)
         }
     }
 
