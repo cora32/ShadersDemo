@@ -94,8 +94,6 @@ class CameraController2(
     private lateinit var outputFile: File
     private lateinit var recordRequest: CaptureRequest
     private lateinit var surface: Surface
-    private lateinit var view: AutoFitSurfaceView
-
 
 //    private val isPortrait: Boolean
 //        get() = mOrientation == 0 || mOrientation == 180
@@ -103,9 +101,8 @@ class CameraController2(
     /** Condition variable for blocking until the recording completes */
     private val cvRecordingStarted = ConditionVariable(false)
 
-    fun init(mSurface: Surface, mView: AutoFitSurfaceView): CameraController2 {
+    fun init(mSurface: Surface, view: AutoFitSurfaceView): CameraController2 {
         surface = mSurface
-        view = mView
 
         isInitialized.value = false
         startThread()
@@ -167,9 +164,11 @@ class CameraController2(
         }
         stopThread()
         pipeline.cleanup()
+        pipeline.clearFrameListener()
         imageReader?.close()
 
         removeEmptyFile()
+        encoder.getInputSurface().release()
     }
 
     fun onDestroy() {
@@ -177,7 +176,7 @@ class CameraController2(
         pipeline.clearFrameListener()
         pipeline.cleanup()
         stopThread()
-        encoderSurface.release()
+        encoder.getInputSurface().release()
     }
 
     private fun removeEmptyFile() {
@@ -454,13 +453,6 @@ class CameraController2(
         }
     }
 
-    /**
-     * Setup a [Surface] for the encoder
-     */
-    private val encoderSurface: Surface by lazy {
-        encoder.getInputSurface()
-    }
-
     fun takePhoto() = bg {
         if (!isInitialized.value) {
             "--> CameraController not initialized yet".e
@@ -484,7 +476,7 @@ class CameraController2(
 
             encoder.setInitialOrientation(mOrientation)
             pipeline.setInitialOrientation(mOrientation)
-            pipeline.actionDown(encoderSurface)
+            pipeline.actionDown(encoder.getInputSurface())
 
             // Finalizes encoder setup and starts recording
             recordingStarted.value = true
@@ -559,7 +551,7 @@ class CameraController2(
         }
     }
 
-    fun onChangeCamera() {
+    fun onChangeCamera(view: AutoFitSurfaceView) {
         isFrontState.value = !isFrontState.value
 
         close()

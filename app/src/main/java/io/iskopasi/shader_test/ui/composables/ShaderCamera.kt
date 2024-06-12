@@ -46,7 +46,6 @@ import io.iskopasi.shader_test.utils.OrientationListener
 import io.iskopasi.shader_test.utils.bg
 import io.iskopasi.shader_test.utils.camera_utils.AutoFitSurfaceView
 import io.iskopasi.shader_test.utils.camera_utils.CameraController2
-import io.iskopasi.shader_test.utils.camera_utils.InitCallback
 import io.iskopasi.shader_test.utils.e
 import io.iskopasi.shader_test.utils.rotation
 import kotlinx.coroutines.delay
@@ -66,12 +65,17 @@ fun CameraView(controller: DrawerController) {
 //        }
 //    }
 
-    var cameraController: CameraController2? = null
+    val cameraController = CameraController2(
+        isFront = false,
+        context = context.applicationContext,
+        orientation = context.rotation
+    )
+
     val orientationListener: OrientationListener by lazy {
         "--> creating orientationListener".e
         object : OrientationListener(context) {
             override fun onSimpleOrientationChanged(orientation: Int, currentOrientation: Int) {
-                cameraController?.onOrientationChanged(orientation, currentOrientation, context)
+                cameraController.onOrientationChanged(orientation, currentOrientation, context)
             }
         }
     }
@@ -79,45 +83,32 @@ fun CameraView(controller: DrawerController) {
     fun getLifecycleObserver() = object : DefaultLifecycleObserver {
 
         override fun onStart(owner: LifecycleOwner) {
-            cameraController?.onStart()
+            cameraController.onStart()
             orientationListener.enable()
         }
 
         override fun onResume(owner: LifecycleOwner) {
-            cameraController?.onResume()
+            cameraController.onResume()
         }
 
         override fun onPause(owner: LifecycleOwner) {
-            cameraController?.onPause()
+            cameraController.onPause()
         }
 
         override fun onStop(owner: LifecycleOwner) {
-            cameraController?.onStop()
+            cameraController.onStop()
             orientationListener.disable()
         }
 
         override fun onDestroy(owner: LifecycleOwner) {
             super.onDestroy(owner)
-            cameraController?.onDestroy()
+            cameraController.onDestroy()
         }
-    }
-
-
-    cameraController = CameraController2(
-        isFront = false,
-        context = context.applicationContext,
-        orientation = context.rotation
-    ).apply {
-        addCallbackListener(object : InitCallback {
-            override fun onInitialized() {
-                super.onInitialized()
-            }
-        })
     }
 
     fun getSurfaceCallback(view: AutoFitSurfaceView) = object : SurfaceHolder.Callback {
         override fun surfaceCreated(holder: SurfaceHolder) {
-            "--> surfaceCreated rotation: ${context.rotation}".e
+            "--> surfaceCreated".e
             // To ensure that size is set, initialize camera in the view's thread
             view.post {
                 cameraController.init(holder.surface, view)
@@ -130,12 +121,10 @@ fun CameraView(controller: DrawerController) {
             width: Int,
             height: Int
         ) {
-            "--> surfaceChanged".e
         }
 
         override fun surfaceDestroyed(holder: SurfaceHolder) {
-            "--> surfaceChanged".e
-            cameraController?.onSurfaceDestroyed()
+            cameraController.onSurfaceDestroyed()
         }
     }
 
@@ -154,15 +143,14 @@ fun CameraView(controller: DrawerController) {
             .fillMaxSize()
     )
 
-
     Box {
-        Box(modifier = Modifier.align(Alignment.BottomCenter)) { Controls(cameraController) }
+        Box(modifier = Modifier.align(Alignment.BottomCenter)) { Controls(cameraController, view) }
         viewFinder
     }
 }
 
 @Composable
-fun Controls(cameraController: CameraController2) {
+fun Controls(cameraController: CameraController2, view: AutoFitSurfaceView) {
     val ctx = LocalContext.current
     val shape = remember {
         RoundedCornerShape(16.dp)
@@ -199,7 +187,7 @@ fun Controls(cameraController: CameraController2) {
             )
         }
         IconButton(
-            onClick = { cameraController.onChangeCamera() },
+            onClick = { cameraController.onChangeCamera(view) },
             enabled = cameraController.isInitialized.value
         ) {
             Icon(

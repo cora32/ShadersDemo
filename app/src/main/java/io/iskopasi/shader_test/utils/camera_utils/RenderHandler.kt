@@ -146,11 +146,18 @@ class RenderHandler(
     private var eglWindowSurface: EGLSurface? = EGL14.EGL_NO_SURFACE
     private var vertexShader = 0
 
-    private var cameraToRenderShaderProgram: ShaderProgram? = null
-    private var renderToPreviewShaderProgram: ShaderProgram? = null
-    private var renderToEncodeShaderProgram: ShaderProgram? = null
-    private var renderToPhotoShaderProgram: ShaderProgram? = null
-
+    private val cameraToRenderShaderProgram: ShaderProgram by lazy {
+        PASSTHROUGH_FSHADER.toShaderProgram()
+    }
+    private val renderToPreviewShaderProgram: ShaderProgram by lazy {
+        context.loadShader("glitch_shader.glsl").toShaderProgram()
+    }
+    private val renderToEncodeShaderProgram: ShaderProgram by lazy {
+        context.loadShader("glitch_shader.glsl").toShaderProgram()
+    }
+    private val renderToPhotoShaderProgram: ShaderProgram by lazy {
+        context.loadShader("glitch_shader.glsl").toShaderProgram()
+    }
     private val cvResourcesCreated = ConditionVariable(false)
     private val cvDestroyWindowSurface = ConditionVariable(false)
     private val cvClearFrameListener = ConditionVariable(false)
@@ -487,28 +494,28 @@ class RenderHandler(
 
             vertexShader = createShader(GLES30.GL_VERTEX_SHADER, TRANSFORM_HDR_VSHADER)
 
-            cameraToRenderShaderProgram = when (filterOn) {
-                false -> YUV_TO_RGB_PASSTHROUGH_HDR_FSHADER.toShaderProgram()
-
-                true -> YUV_TO_RGB_PORTRAIT_HDR_FSHADER.toShaderProgram()
-            }
-            renderToPreviewShaderProgram = when (transfer) {
-                PQ_ID -> HLG_TO_PQ_HDR_FSHADER.toShaderProgram()
-                LINEAR_ID -> HLG_TO_LINEAR_HDR_FSHADER.toShaderProgram()
-                HLG_ID, HLG_WORKAROUND_ID -> PASSTHROUGH_HDR_FSHADER.toShaderProgram()
-                else -> throw RuntimeException("Unexpected transfer $transfer")
-            }
-            renderToEncodeShaderProgram = PASSTHROUGH_HDR_FSHADER.toShaderProgram()
-            renderToPhotoShaderProgram = PASSTHROUGH_HDR_FSHADER.toShaderProgram()
+//            cameraToRenderShaderProgram = when (filterOn) {
+//                false -> YUV_TO_RGB_PASSTHROUGH_HDR_FSHADER.toShaderProgram()
+//
+//                true -> YUV_TO_RGB_PORTRAIT_HDR_FSHADER.toShaderProgram()
+//            }
+//            renderToPreviewShaderProgram = when (transfer) {
+//                PQ_ID -> HLG_TO_PQ_HDR_FSHADER.toShaderProgram()
+//                LINEAR_ID -> HLG_TO_LINEAR_HDR_FSHADER.toShaderProgram()
+//                HLG_ID, HLG_WORKAROUND_ID -> PASSTHROUGH_HDR_FSHADER.toShaderProgram()
+//                else -> throw RuntimeException("Unexpected transfer $transfer")
+//            }
+//            renderToEncodeShaderProgram = PASSTHROUGH_HDR_FSHADER.toShaderProgram()
+//            renderToPhotoShaderProgram = PASSTHROUGH_HDR_FSHADER.toShaderProgram()
         } else {
             vertexShader = createShader(GLES30.GL_VERTEX_SHADER, TRANSFORM_VSHADER)
-            cameraToRenderShaderProgram = PASSTHROUGH_FSHADER.toShaderProgram()
-            renderToPreviewShaderProgram =
-                context.loadShader("glitch_shader.glsl").toShaderProgram()
-            renderToEncodeShaderProgram =
-                context.loadShader("glitch_shader.glsl").toShaderProgram()
-            renderToPhotoShaderProgram =
-                context.loadShader("glitch_shader.glsl").toShaderProgram()
+//            cameraToRenderShaderProgram = PASSTHROUGH_FSHADER.toShaderProgram()
+//            renderToPreviewShaderProgram =
+//                context.loadShader("glitch_shader.glsl").toShaderProgram()
+//            renderToEncodeShaderProgram =
+//                context.loadShader("glitch_shader.glsl").toShaderProgram()
+//            renderToPhotoShaderProgram =
+//                context.loadShader("glitch_shader.glsl").toShaderProgram()
         }
     }
 
