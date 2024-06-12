@@ -113,7 +113,7 @@ fun ShaderViewport(controller: DrawerController) {
     var bottom = 0f
     var left = 0f
     var right = 0f
-    val circleWidth = 150f
+    val circleWidth = 200f
     val leftPadding = circleWidth / 2f
     val height = 500.dp
     var top = 0f

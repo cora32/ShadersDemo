@@ -161,18 +161,7 @@ class CameraController2(
         stopTimer()
         "--> onStop".e
 
-        try {
-            session.stopRepeating()
-            session.close()
-            device?.close()
-        } catch (exc: Throwable) {
-            "$exc".e
-        }
-        stopThread()
-        pipeline.cleanup()
-        pipeline.clearFrameListener()
-        imageReader?.close()
-
+        cleanup()
         removeEmptyFile()
         encoder.getInputSurface().release()
     }
@@ -232,6 +221,22 @@ class CameraController2(
 
     fun onSurfaceDestroyed() {
         pipeline.destroyWindowSurface()
+
+        cleanup()
+    }
+
+    private fun cleanup() {
+        try {
+            session.stopRepeating()
+            session.close()
+            device?.close()
+        } catch (exc: Throwable) {
+            "$exc".e
+        }
+        stopThread()
+        pipeline.cleanup()
+        pipeline.clearFrameListener()
+        imageReader?.close()
     }
 
     private fun stopThread() {

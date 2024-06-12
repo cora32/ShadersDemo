@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -127,6 +128,7 @@ fun CameraView(controller: DrawerController) {
         }
 
         override fun surfaceDestroyed(holder: SurfaceHolder) {
+            "--> surfaceDestroyed".e
             cameraController.onSurfaceDestroyed()
         }
     }
@@ -138,7 +140,7 @@ fun CameraView(controller: DrawerController) {
         }
     }
 
-    val viewFinder = AndroidView(
+    AndroidView(
         factory = {
             view
         },
@@ -146,16 +148,15 @@ fun CameraView(controller: DrawerController) {
             .fillMaxSize()
     )
 
-    Box {
+    Box(modifier = Modifier.fillMaxHeight()) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.align(Alignment.BottomCenter)
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
         ) {
-//            if(cameraController.recordingStarted.value) Text(text = cameraController.timerValue.value) else Box{}
             TimerView(cameraController)
             Controls(cameraController, view)
         }
-        viewFinder
     }
 }
 
@@ -174,7 +175,7 @@ fun Controls(cameraController: CameraController2, view: AutoFitSurfaceView) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceEvenly,
         modifier = Modifier
-            .padding(bottom = 70.dp, start = 16.dp, end = 16.dp)
+            .padding(bottom = 70.dp, start = 48.dp, end = 16.dp)
             .border(
                 border = BorderStroke(1.dp, color = Color.DarkGray),
                 shape = shape
