@@ -3,6 +3,7 @@ package io.iskopasi.shader_test.ui.composables
 import android.content.Context
 import android.os.Build
 import android.view.SurfaceHolder
+import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
@@ -33,8 +34,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +51,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toDrawable
 import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import io.iskopasi.shader_test.DrawerController
 import io.iskopasi.shader_test.utils.OrientationListener
@@ -54,32 +60,117 @@ import io.iskopasi.shader_test.utils.bg
 import io.iskopasi.shader_test.utils.camera_utils.AutoFitSurfaceView
 import io.iskopasi.shader_test.utils.camera_utils.CameraController2
 import io.iskopasi.shader_test.utils.e
+import io.iskopasi.shader_test.utils.main
 import io.iskopasi.shader_test.utils.rotation
 import kotlinx.coroutines.delay
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
 
+fun getLifecycleObserver(
+    cameraController: CameraController2,
+    orientationListener: OrientationListener
+) = object : DefaultLifecycleObserver {
+
+    override fun onStart(owner: LifecycleOwner) {
+        cameraController.onStart()
+        orientationListener.enable()
+    }
+
+    override fun onResume(owner: LifecycleOwner) {
+        cameraController.onResume()
+    }
+
+    override fun onPause(owner: LifecycleOwner) {
+        cameraController.onPause()
+    }
+
+    override fun onStop(owner: LifecycleOwner) {
+        cameraController.onStop()
+        orientationListener.disable()
+    }
+
+    override fun onDestroy(owner: LifecycleOwner) {
+        super.onDestroy(owner)
+        orientationListener.disable()
+        cameraController.onDestroy()
+    }
+}
+
+fun getSurfaceCallback(
+    view: AutoFitSurfaceView,
+    cameraController: CameraController2,
+    orientationListener: OrientationListener
+) = object : SurfaceHolder.Callback {
+    override fun surfaceCreated(holder: SurfaceHolder) {
+        "--> surfaceCreated".e
+        // To ensure that size is set, initialize camera in the view's thread
+        view.post {
+            cameraController.init(holder.surface, view)
+        }
+        orientationListener.enable()
+    }
+
+    override fun surfaceChanged(
+        holder: SurfaceHolder,
+        format: Int,
+        width: Int,
+        height: Int
+    ) {
+        "--> surfaceChanged".e
+    }
+
+    override fun surfaceDestroyed(holder: SurfaceHolder) {
+        "--> surfaceDestroyed".e
+        cameraController.onSurfaceDestroyed()
+        orientationListener.disable()
+        cameraController.onDestroy()
+    }
+}
+
+@Composable
+fun Lifecycle.observeAsState(): State<Lifecycle.Event> {
+    val state = remember { mutableStateOf(Lifecycle.Event.ON_ANY) }
+    DisposableEffect(this) {
+        val observer = LifecycleEventObserver { _, event ->
+            state.value = event
+        }
+        this@observeAsState.addObserver(observer)
+        onDispose {
+            this@observeAsState.removeObserver(observer)
+        }
+    }
+    return state
+}
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun CameraView(controller: DrawerController) {
     val context = LocalContext.current.applicationContext
     val lifecycleOwner = LocalLifecycleOwner.current
-//    var cameraController: Camera2Controller? = null
-//    val view = remember {
-//        GLSurfaceView(context).apply {
-//            cameraController = Camera2Controller(this, isFront, lifecycleOwner)
-//        }
-//    }
 
-    val cameraController = CameraController2(
-        isFront = false,
-        context = context.applicationContext,
-        orientation = context.rotation
-    )
+    val cameraController = remember {
+        CameraController2(
+            isFront = false,
+            context = context.applicationContext,
+            orientation = context.rotation,
+            glslFilename = controller.currentShader.value.glslFilename
+        )
+    }
 
-    val orientationListener: OrientationListener by lazy {
-        "--> creating orientationListener".e
+    controller.onShaderUpdate { shader ->
+        if (shader.glslFilename == "default.glsl") {
+            main {
+                Toast.makeText(
+                    context.applicationContext,
+                    "${shader.shaderName}: Not implemented on GLSL",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+        cameraController.changeShader(shader)
+    }
+
+    val orientationListener: OrientationListener = remember {
         object : OrientationListener(context) {
             override fun onSimpleOrientationChanged(orientation: Int, currentOrientation: Int) {
                 cameraController.onOrientationChanged(orientation, currentOrientation, context)
@@ -87,59 +178,28 @@ fun CameraView(controller: DrawerController) {
         }
     }
 
-    fun getLifecycleObserver() = object : DefaultLifecycleObserver {
-
-        override fun onStart(owner: LifecycleOwner) {
-            cameraController.onStart()
-            orientationListener.enable()
-        }
-
-        override fun onResume(owner: LifecycleOwner) {
-            cameraController.onResume()
-        }
-
-        override fun onPause(owner: LifecycleOwner) {
-            cameraController.onPause()
-        }
-
-        override fun onStop(owner: LifecycleOwner) {
-            cameraController.onStop()
-            orientationListener.disable()
-        }
-
-        override fun onDestroy(owner: LifecycleOwner) {
-            super.onDestroy(owner)
-            cameraController.onDestroy()
-        }
-    }
-
-    fun getSurfaceCallback(view: AutoFitSurfaceView) = object : SurfaceHolder.Callback {
-        override fun surfaceCreated(holder: SurfaceHolder) {
-            "--> surfaceCreated".e
-            // To ensure that size is set, initialize camera in the view's thread
-            view.post {
-                cameraController.init(holder.surface, view)
-            }
-        }
-
-        override fun surfaceChanged(
-            holder: SurfaceHolder,
-            format: Int,
-            width: Int,
-            height: Int
-        ) {
-        }
-
-        override fun surfaceDestroyed(holder: SurfaceHolder) {
-            "--> surfaceDestroyed".e
-            cameraController.onSurfaceDestroyed()
-        }
-    }
-
     val view = remember {
-        AutoFitSurfaceView(context).also { view ->
-            view.holder.addCallback(getSurfaceCallback(view))
-            lifecycleOwner.lifecycle.addObserver(getLifecycleObserver())
+        AutoFitSurfaceView(context)
+    }
+
+    val observer = remember {
+        getLifecycleObserver(
+            cameraController,
+            orientationListener
+        )
+    }
+
+    val callback = remember {
+        getSurfaceCallback(view, cameraController, orientationListener)
+    }
+
+    DisposableEffect(lifecycleOwner.lifecycle) {
+        lifecycleOwner.lifecycle.addObserver(observer)
+        view.holder.addCallback(callback)
+
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            view.holder.removeCallback(callback)
         }
     }
 
@@ -165,7 +225,11 @@ fun CameraView(controller: DrawerController) {
 
 @Composable
 fun TimerView(cameraController: CameraController2) {
-    Text(text = cameraController.timerValue.value)
+    Text(
+        modifier = Modifier
+            .padding(start = 48.dp, end = 16.dp),
+        text = cameraController.state.timerValue.value
+    )
 }
 
 @Composable
@@ -176,7 +240,7 @@ fun Controls(cameraController: CameraController2, view: AutoFitSurfaceView) {
     }
 
     val rotation: Float by animateFloatAsState(
-        -cameraController.mOrientation.value.toFloat(),
+        -cameraController.state.mOrientation.value.toFloat(),
         label = ""
     )
 
@@ -195,20 +259,15 @@ fun Controls(cameraController: CameraController2, view: AutoFitSurfaceView) {
     ) {
         IconButton(
             onClick = {
-                cameraController.isReadyToPhoto.value = false
                 cameraController.takePhoto()
-                bg {
-                    delay(200L)
-                    cameraController.isReadyToPhoto.value = true
-                }
                 view.blink()
             },
-            enabled = cameraController.isReadyToPhoto.value
+            enabled = cameraController.state.isReadyToPhoto.value
         ) {
             Icon(
                 Icons.Rounded.PhotoCamera,
                 "",
-                tint = if (cameraController.isReadyToPhoto.value) Color.White else Color.Gray,
+                tint = if (cameraController.state.isReadyToPhoto.value) Color.White else Color.Gray,
                 modifier = Modifier
                     .size(38.dp)
                     .rotate(rotation)
@@ -216,13 +275,13 @@ fun Controls(cameraController: CameraController2, view: AutoFitSurfaceView) {
         }
         IconButton(
             onClick = { cameraController.onChangeCamera(view) },
-            enabled = cameraController.isInitialized.value
+            enabled = cameraController.state.isInitialized.value
         ) {
             Icon(
-                if (cameraController.isFrontState.value) Icons.Rounded.CameraFront
+                if (cameraController.state.isFrontState.value) Icons.Rounded.CameraFront
                 else Icons.Rounded.PhotoCameraBack,
                 "",
-                tint = if (cameraController.isInitialized.value) Color.White else Color.Gray,
+                tint = if (cameraController.state.isInitialized.value) Color.White else Color.Gray,
                 modifier = Modifier
                     .size(38.dp)
                     .rotate(rotation)
@@ -230,21 +289,20 @@ fun Controls(cameraController: CameraController2, view: AutoFitSurfaceView) {
         }
         IconButton(
             onClick = {
-                cameraController.isReadyToVideo.value = false
                 cameraController.startVideoRec(ctx.applicationContext)
                 bg {
                     // Need at least a second of video to form a valid mp4
                     delay(1000L)
-                    cameraController.isReadyToVideo.value = true
+                    cameraController.state.isReadyToVideo.value = true
                 }
             },
-            enabled = cameraController.isInitialized.value && cameraController.isReadyToVideo.value
+            enabled = cameraController.state.isInitialized.value && cameraController.state.isReadyToVideo.value
         ) {
             Icon(
-                if (cameraController.recordingStarted.value) Icons.Rounded.Stop
+                if (cameraController.state.recordingStarted.value) Icons.Rounded.Stop
                 else Icons.Rounded.Videocam,
                 "",
-                tint = if (cameraController.isInitialized.value) if (cameraController.recordingStarted.value) Color.Red else Color.White else Color.Gray,
+                tint = if (cameraController.state.isInitialized.value) if (cameraController.state.recordingStarted.value) Color.Red else Color.White else Color.Gray,
                 modifier = Modifier
                     .size(38.dp)
                     .rotate(rotation)
@@ -252,10 +310,6 @@ fun Controls(cameraController: CameraController2, view: AutoFitSurfaceView) {
         }
     }
 }
-
-//private fun Float.animate(): Float {
-//    TODO("Not yet implemented")
-//}
 
 private fun AutoFitSurfaceView.blink() {
     post {

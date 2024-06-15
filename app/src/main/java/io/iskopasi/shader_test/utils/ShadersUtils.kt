@@ -5,19 +5,28 @@ import androidx.annotation.RequiresApi
 import org.intellij.lang.annotations.Language
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-enum class Shaders(val shaderName: String, val shaderHolder: RuntimeShaderHolder) {
-    BoxBlurShader("Box blur", RuntimeShaderHolder(BLUR_SHADER)),
-    GoogleBlurShader("Google blur", EmptyShader()),
-    GradientBorderShader(
-        "Gradient border",
-        GradientBorderRuntimeShaderHolder(GRADIENT_BORDER_SHADER)
+enum class Shaders(
+    val shaderName: String,
+    val shaderHolder: RuntimeShaderHolder,
+    val glslFilename: String
+) {
+    BoxBlurShader("Box blur", RuntimeShaderHolder(BLUR_SHADER), "blur.glsl"),
+    GoogleBlurShader("Google blur", EmptyShader(), "default.glsl"),
+
+    //    GradientBorderShader(
+//        "Gradient border",
+//        GradientBorderRuntimeShaderHolder(GRADIENT_BORDER_SHADER), "default.glsl"
+//    ),
+//    TestShader("Test shader", TestRuntimeShaderHolder(CUSTOM_SHADER), "default.glsl"),
+    GlitchShader(
+        "Glitch shader",
+        RuntimeShaderHolder(GLITCH_SHADER, animated = true),
+        "glitch_shader.glsl"
     ),
-    TestShader("Test shader", TestRuntimeShaderHolder(CUSTOM_SHADER)),
-    GlitchShader("Glitch shader", RuntimeShaderHolder(GLITCH_SHADER, animated = true)),
-    BlurBorderShader(
-        "Blur + border shader",
-        ChainShaderHolder(listOf(BoxBlurShader, GradientBorderShader))
-    ),
+//    BlurBorderShader(
+//        "Blur + border shader",
+//        ChainShaderHolder(listOf(BoxBlurShader, GradientBorderShader)), "default.glsl"
+//    ),
 }
 
 

@@ -72,6 +72,7 @@ class AutoFitSurfaceView @JvmOverloads constructor(
         }
     }
 
+
     companion object {
         private val TAG = AutoFitSurfaceView::class.java.simpleName
     }

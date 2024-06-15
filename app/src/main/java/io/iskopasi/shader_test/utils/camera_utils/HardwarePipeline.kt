@@ -44,7 +44,8 @@ class HardwarePipeline(
     characteristics: CameraCharacteristics,
     encoder: EncoderWrapper,
     orientation: Int,
-    context: Context
+    context: Context,
+    glsl: String,
 ) : Pipeline(
     width, height, fps, filterOn, dynamicRange, characteristics, encoder
 ) {
@@ -64,8 +65,18 @@ class HardwarePipeline(
         dynamicRange,
         encoder,
         orientation,
-        context
+        context.applicationContext,
+        glsl
     )
+
+    override fun changeShader(glslFilename: String) {
+//        renderHandler.changeShader(shader)
+        renderHandler.sendMessage(
+            renderHandler.obtainMessage(
+                RenderHandler.MSG_CHANGE_SHADER, 0, 0, glslFilename
+            )
+        )
+    }
 
     private fun stopThread() {
         renderThread.quitSafely()
@@ -92,6 +103,8 @@ class HardwarePipeline(
     }
 
     override fun destroyWindowSurface() {
+        if (!renderThread.isAlive) return
+
         renderHandler.sendMessage(
             renderHandler.obtainMessage(
                 RenderHandler.MSG_DESTROY_WINDOW_SURFACE
@@ -105,6 +118,8 @@ class HardwarePipeline(
     }
 
     override fun createResources(surface: Surface) {
+        if (!renderThread.isAlive) return
+
         renderHandler.sendMessage(
             renderHandler.obtainMessage(
                 RenderHandler.MSG_CREATE_RESOURCES, 0, 0, surface
@@ -121,6 +136,8 @@ class HardwarePipeline(
     }
 
     override fun actionDown(encoderSurface: Surface) {
+        if (!renderThread.isAlive) return
+
         renderHandler.sendMessage(
             renderHandler.obtainMessage(
                 RenderHandler.MSG_ACTION_DOWN, 0, 0, encoderSurface
@@ -129,6 +146,8 @@ class HardwarePipeline(
     }
 
     override fun actionTakePhoto(imageReaderSurface: Surface) {
+        if (!renderThread.isAlive) return
+
         renderHandler.sendMessage(
             renderHandler.obtainMessage(
                 RenderHandler.MSG_ACTION_TAKE_PHOTO, 0, 0, imageReaderSurface
@@ -137,6 +156,8 @@ class HardwarePipeline(
     }
 
     override fun setOrientation(orientation: Int) {
+        if (!renderThread.isAlive) return
+
         "--> Setting pipeline orientation: $orientation".e
         renderHandler.sendMessage(
             renderHandler.obtainMessage(
@@ -146,6 +167,8 @@ class HardwarePipeline(
     }
 
     override fun setInitialOrientation(orientation: Int) {
+        if (!renderThread.isAlive) return
+
         "--> Setting initial pipeline orientation: $orientation".e
         renderHandler.sendMessage(
             renderHandler.obtainMessage(
@@ -155,6 +178,8 @@ class HardwarePipeline(
     }
 
     override fun clearFrameListener() {
+        if (!renderThread.isAlive) return
+
         renderHandler.sendMessage(
             renderHandler.obtainMessage(
                 RenderHandler.MSG_CLEAR_FRAME_LISTENER
@@ -164,6 +189,8 @@ class HardwarePipeline(
     }
 
     override fun cleanup() {
+        if (!renderThread.isAlive) return
+
         renderHandler.sendMessage(
             renderHandler.obtainMessage(
                 RenderHandler.MSG_CLEANUP

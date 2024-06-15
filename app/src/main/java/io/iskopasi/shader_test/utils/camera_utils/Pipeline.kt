@@ -68,4 +68,5 @@ abstract class Pipeline(
     open fun startRecording() {}
 
     open fun stopRecording() {}
+    open fun changeShader(glslFilename: String) {}
 }

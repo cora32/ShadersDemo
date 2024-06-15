@@ -84,7 +84,8 @@ class RenderHandler(
     private val dynamicRange: Long,
     private val encoder: EncoderWrapper,
     private val initialOrientation: Int,
-    private val context: Context
+    private val context: Context,
+    private var currentGLSLFilename: String,
 ) : Handler(looper), SurfaceTexture.OnFrameAvailableListener {
     companion object {
         const val MSG_CREATE_RESOURCES = 0
@@ -96,10 +97,11 @@ class RenderHandler(
         const val MSG_ON_SET_ORIENTATION = 6
         const val MSG_ON_SET_INITIAL_ORIENTATION = 7
         const val MSG_ACTION_TAKE_PHOTO = 8
+        const val MSG_CHANGE_SHADER = 9
     }
 
-    private val isPortrait: Boolean
-        get() = orientation == 0 || orientation == 180
+//    private val isPortrait: Boolean
+//        get() = orientation == 0 || orientation == 180
 
     private var orientation: Int = initialOrientation
     private var previewSize = Size(0, 0)
@@ -149,15 +151,9 @@ class RenderHandler(
     private val cameraToRenderShaderProgram: ShaderProgram by lazy {
         PASSTHROUGH_FSHADER.toShaderProgram()
     }
-    private val renderToPreviewShaderProgram: ShaderProgram by lazy {
-        context.loadShader("glitch_shader.glsl").toShaderProgram()
-    }
-    private val renderToEncodeShaderProgram: ShaderProgram by lazy {
-        context.loadShader("glitch_shader.glsl").toShaderProgram()
-    }
-    private val renderToPhotoShaderProgram: ShaderProgram by lazy {
-        context.loadShader("glitch_shader.glsl").toShaderProgram()
-    }
+    private lateinit var renderToPreviewShaderProgram: ShaderProgram
+    private lateinit var renderToEncodeShaderProgram: ShaderProgram
+    private lateinit var renderToPhotoShaderProgram: ShaderProgram
     private val cvResourcesCreated = ConditionVariable(false)
     private val cvDestroyWindowSurface = ConditionVariable(false)
     private val cvClearFrameListener = ConditionVariable(false)
@@ -170,6 +166,19 @@ class RenderHandler(
     fun stopRecording() {
         currentlyRecording = false
         "--> stopRecording called; currentlyRecording = $currentlyRecording".e
+    }
+
+    private fun changeShader(shaderFilename: String) {
+        "--> changeShader: $shaderFilename ".e
+        currentGLSLFilename = shaderFilename
+        setupShaders()
+    }
+
+    private fun setupShaders() {
+        "--> Setting up shader: $currentGLSLFilename ".e
+        renderToPreviewShaderProgram = context.loadShader(currentGLSLFilename).toShaderProgram()
+        renderToEncodeShaderProgram = context.loadShader(currentGLSLFilename).toShaderProgram()
+        renderToPhotoShaderProgram = context.loadShader(currentGLSLFilename).toShaderProgram()
     }
 
     fun createRecordRequest(
@@ -510,12 +519,7 @@ class RenderHandler(
         } else {
             vertexShader = createShader(GLES30.GL_VERTEX_SHADER, TRANSFORM_VSHADER)
 //            cameraToRenderShaderProgram = PASSTHROUGH_FSHADER.toShaderProgram()
-//            renderToPreviewShaderProgram =
-//                context.loadShader("glitch_shader.glsl").toShaderProgram()
-//            renderToEncodeShaderProgram =
-//                context.loadShader("glitch_shader.glsl").toShaderProgram()
-//            renderToPhotoShaderProgram =
-//                context.loadShader("glitch_shader.glsl").toShaderProgram()
+            setupShaders()
         }
     }
 
@@ -850,7 +854,7 @@ class RenderHandler(
             renderTexId,
             renderTexture,
             Rect(0, 0, viewportWidth, viewportHeight),
-            renderToEncodeShaderProgram!!,
+            renderToEncodeShaderProgram,
             false
         )
 
@@ -1021,6 +1025,7 @@ class RenderHandler(
     @RequiresApi(Build.VERSION_CODES.O)
     override fun handleMessage(msg: Message) {
         when (msg.what) {
+            MSG_CHANGE_SHADER -> changeShader(msg.obj as String)
             MSG_CREATE_RESOURCES -> createResources(msg.obj as Surface)
             MSG_DESTROY_WINDOW_SURFACE -> destroyWindowSurface()
             MSG_ACTION_DOWN -> actionDown(msg.obj as Surface)

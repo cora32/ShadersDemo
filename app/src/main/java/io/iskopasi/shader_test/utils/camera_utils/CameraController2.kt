@@ -27,9 +27,12 @@ import android.util.Size
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.widget.Toast
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.content.ContextCompat
 import androidx.core.os.ExecutorCompat
+import io.iskopasi.shader_test.utils.Shaders
 import io.iskopasi.shader_test.utils.bg
 import io.iskopasi.shader_test.utils.cameraManager
 import io.iskopasi.shader_test.utils.createFile
@@ -55,16 +58,37 @@ interface InitCallback {
 
 class CameraController2(
     val context: Context,
-    isFront: Boolean,
-    orientation: Int
+    var isFront: Boolean,
+    var orientation: Int,
+    private var glslFilename: String
 ) {
-    val isFrontState = mutableStateOf(isFront)
-    var isInitialized = mutableStateOf(false)
-    var isReadyToPhoto = mutableStateOf(false)
-    var isReadyToVideo = mutableStateOf(false)
-    var recordingStarted = mutableStateOf(false)
-    var timerValue = mutableStateOf("")
-    var mOrientation = mutableStateOf(orientation)
+    data class State(
+        val isFrontState: MutableState<Boolean> = mutableStateOf(false),
+        val isInitialized: MutableState<Boolean> = mutableStateOf(false),
+        val isReadyToPhoto: MutableState<Boolean> = mutableStateOf(false),
+        val isReadyToVideo: MutableState<Boolean> = mutableStateOf(false),
+        val recordingStarted: MutableState<Boolean> = mutableStateOf(false),
+        val timerValue: MutableState<String> = mutableStateOf(""),
+        val mOrientation: MutableState<Int> = mutableStateOf(0),
+    )
+
+    val state by lazy {
+        State(
+            mutableStateOf(isFront),
+            mutableStateOf(isInitialized),
+            mutableStateOf(isReadyToPhoto),
+            mutableStateOf(isReadyToVideo),
+            mutableStateOf(recordingStarted),
+            timerValue = mutableStateOf(""),
+            mOrientation = mutableIntStateOf(orientation),
+        )
+    }
+
+    private var isInitialized = false
+    private var isReadyToPhoto = false
+    private var isReadyToVideo = false
+    private var recordingStarted = false
+    private var initInProgress = false
 
     private var myTimer: Timer? = null
     private lateinit var previewSize: Size
@@ -106,15 +130,45 @@ class CameraController2(
     /** Condition variable for blocking until the recording completes */
     private val cvRecordingStarted = ConditionVariable(false)
 
+    private fun setIsInitialized(value: Boolean) {
+        state.isInitialized.value = value
+        isInitialized = value
+
+        "---> setIsInitialized: $value".e
+    }
+
+    private fun setIsReadyToPhoto(value: Boolean) {
+        state.isReadyToPhoto.value = value
+        isReadyToPhoto = value
+    }
+
+    private fun setIsReadyToVideo(value: Boolean) {
+        state.isReadyToVideo.value = value
+        isReadyToVideo = value
+    }
+
+    private fun setIsRecordingStarted(value: Boolean) {
+        state.recordingStarted.value = value
+        recordingStarted = value
+    }
+
     fun init(mSurface: Surface, view: AutoFitSurfaceView): CameraController2 {
+        if (initInProgress) {
+            "Init is in progress".e
+            return this
+        }
+        initInProgress = true
+
         surface = mSurface
 
-        isInitialized.value = false
+        setIsInitialized(false)
+        setIsReadyToPhoto(false)
+        setIsReadyToVideo(false)
         startThread()
 
         val cameraId = getCameraId(
             context,
-            if (isFrontState.value) CameraMetadata.LENS_FACING_FRONT else CameraMetadata.LENS_FACING_BACK
+            if (isFront) CameraMetadata.LENS_FACING_FRONT else CameraMetadata.LENS_FACING_BACK
         )
 
         characteristics = getCharacteristics(context, cameraId)
@@ -132,9 +186,10 @@ class CameraController2(
             initializeCamera(context, cameraId)
 
             initCallback?.onInitialized()
-            isInitialized.value = true
-            isReadyToPhoto.value = true
-            isReadyToVideo.value = true
+            setIsInitialized(true)
+            setIsReadyToPhoto(true)
+            setIsReadyToVideo(true)
+            initInProgress = false
         }
 
         return this
@@ -157,7 +212,7 @@ class CameraController2(
     }
 
     fun onStop() {
-        isInitialized.value = false
+        setIsInitialized(false)
         stopTimer()
         "--> onStop".e
 
@@ -172,6 +227,8 @@ class CameraController2(
         pipeline.cleanup()
         stopThread()
         encoder.getInputSurface().release()
+
+        setIsInitialized(false)
     }
 
     private fun removeEmptyFile() {
@@ -220,6 +277,8 @@ class CameraController2(
     }
 
     fun onSurfaceDestroyed() {
+        if (!isInitialized) return
+
         pipeline.destroyWindowSurface()
 
         cleanup()
@@ -300,7 +359,7 @@ class CameraController2(
             }
 
     private fun isCurrentlyRecording(): Boolean {
-        return recordingStarted.value && !recordingComplete
+        return recordingStarted && !recordingComplete
     }
 
 
@@ -411,7 +470,7 @@ class CameraController2(
             bitrate,
             fps,
             dynamicRange,
-            mOrientation.value,
+            orientation,
             outputFile,
             useMediaRecorder = true,
             videoCodec,
@@ -431,23 +490,18 @@ class CameraController2(
             dynamicRange,
             characteristics,
             encoder,
-            orientation = mOrientation.value,
-            context.applicationContext
+            orientation = orientation,
+            context.applicationContext,
+            glslFilename
         )
         pipeline.setPreviewSize(previewSize)
         pipeline.createResources(surface)
     }
 
     private fun createImageReader(context: Context) {
-
-//        val mSensorOrientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION)
-//        "--> mSensorOrientation: $mSensorOrientation".e
-
         imageReader?.setOnImageAvailableListener(null, null)
         imageReader?.close()
         imageReader = ImageReader.newInstance(
-//            if (isPortrait) height else width,
-//            if (isPortrait) width else height,
             height,
             width,
             PixelFormat.RGBA_8888,
@@ -456,7 +510,7 @@ class CameraController2(
             setOnImageAvailableListener(
                 { reader ->
                     reader.acquireLatestImage().use { image ->
-                        image.saveARGB8888ToFile(context)?.setExifOrientation(mOrientation.value)
+                        image.saveARGB8888ToFile(context)?.setExifOrientation(orientation)
                     }
                 },
                 cameraHandler
@@ -465,33 +519,42 @@ class CameraController2(
     }
 
     fun takePhoto() = bg {
-        if (!isInitialized.value) {
+        if (!isInitialized) {
             "--> CameraController not initialized yet".e
             return@bg
         }
+
+        setIsReadyToPhoto(false)
 
         imageReader?.apply {
             pipeline.actionTakePhoto(imageReader!!.surface)
         }
+
+        bg {
+            delay(200L)
+            setIsReadyToPhoto(true)
+        }
     }
 
     fun startVideoRec(context: Context) = bg {
-        if (!isInitialized.value) {
+        if (!isInitialized) {
             "--> CameraController not initialized yet".e
             return@bg
         }
 
-        if (!recordingStarted.value) {
+        if (!recordingStarted) {
+            setIsReadyToVideo(false)
             startTimer()
             "--> Starting recording".e
             recordingStartMillis = System.currentTimeMillis()
 
-            encoder.setInitialOrientation(mOrientation.value)
-            pipeline.setInitialOrientation(mOrientation.value)
+            encoder.setInitialOrientation(orientation)
+            pipeline.setInitialOrientation(orientation)
             pipeline.actionDown(encoder.getInputSurface())
 
             // Finalizes encoder setup and starts recording
-            recordingStarted.value = true
+
+            setIsRecordingStarted(true)
             encoder.start()
             cvRecordingStarted.open()
             pipeline.startRecording()
@@ -515,7 +578,7 @@ class CameraController2(
 
             stopRecording()
 
-            recordingStarted.value = false
+            setIsRecordingStarted(false)
             "--> Recording stopped. Output file: $outputFile".e
             if (encoder.shutdown()) {
                 // Broadcasts the media file to the rest of the system
@@ -547,37 +610,47 @@ class CameraController2(
             // Resetting MediaRecorder with new file
             outputFile = context.applicationContext.createFile("mp4")
             encoder.setOutputFile(outputFile)
+
+            setIsReadyToVideo(true)
         }
     }
 
     private fun stopTimer() {
         myTimer?.cancel()
-        timerValue.value = ""
+        state.timerValue.value = ""
     }
 
     private fun startTimer() {
         myTimer = timer(initialDelay = 0, period = 1000L) {
             val totalSec = (System.currentTimeMillis() - recordingStartMillis) / 1000
-            timerValue.value = DateUtils.formatElapsedTime(totalSec)
+            state.timerValue.value = DateUtils.formatElapsedTime(totalSec)
         }
     }
 
-    fun onOrientationChanged(orientation: Int, currentOrientation: Int, context: Context) {
-        "--> Setting orientation: $mOrientation".e
-        when (currentOrientation) {
-            Surface.ROTATION_0 -> mOrientation.value = 0
-            Surface.ROTATION_90 -> mOrientation.value = 90
-            Surface.ROTATION_180 -> mOrientation.value = 180
-            Surface.ROTATION_270 -> mOrientation.value = 270
+    fun onOrientationChanged(mOrientation: Int, currentOrientation: Int, context: Context) {
+        "--> Setting orientation: $orientation".e
+        orientation = when (currentOrientation) {
+            Surface.ROTATION_0 -> 0
+            Surface.ROTATION_90 -> 90
+            Surface.ROTATION_180 -> 180
+            Surface.ROTATION_270 -> 270
+            else -> 0
         }
 
-        if (isInitialized.value) {
-            pipeline.setOrientation(mOrientation.value)
+        state.mOrientation.value = orientation
+
+        if (isInitialized) {
+            pipeline.setOrientation(orientation)
         }
     }
 
     fun onChangeCamera(view: AutoFitSurfaceView) {
-        isFrontState.value = !isFrontState.value
+        if (!isInitialized) return
+
+        state.isFrontState.value = !state.isFrontState.value
+        isFront = !isFront
+
+        "--> state.isFrontState.value: ${state.isFrontState.value}".e
 
         close()
         init(surface, view)
@@ -585,5 +658,12 @@ class CameraController2(
 
     fun close() {
         onStop()
+    }
+
+    fun changeShader(shader: Shaders) {
+        if (!isInitialized) return
+
+        glslFilename = shader.glslFilename
+        pipeline.changeShader(glslFilename)
     }
 }
