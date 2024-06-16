@@ -27,6 +27,11 @@ enum class Shaders(
 //        "Blur + border shader",
 //        ChainShaderHolder(listOf(BoxBlurShader, GradientBorderShader)), "default.glsl"
 //    ),
+ChromaticShader(
+    "Chromatic aberration",
+    RuntimeShaderHolder(CHROMATIC_SHADER, animated = false),
+    "chromatic.glsl"
+),
 }
 
 
@@ -276,5 +281,38 @@ val BLUR_SHADER = """
         currValue /= float(radius * radius);
     
         return currValue;
+    }
+""".trimIndent()
+
+@Language("AGSL")
+val CHROMATIC_SHADER = """
+    uniform shader inputShader;
+    uniform float2 iResolution;
+
+    const vec3 offset = vec3(-1, 1, 3);
+    const vec3 offset2 = vec3(-5, -1, 0);
+    const mat3 edge = mat3(30, -5, -10, -15, -1, -12, -5, -10, 21);
+    const mat3 edge2 = mat3(-8, 0, -1, 0, 0, 0, 0, 1, 5);
+    const int radius = 3;
+
+    vec4 main(in float2  coords) {        
+        vec4 value = vec4(0.0, 0.0, 0.0, 1.0);
+        vec4 value2 = vec4(0.0, 0.0, 0.0, 1.0);
+
+        for (int x = 0; x < radius; x++) {
+            for (int y = 0; y < radius; y++) {
+                vec2 coord = vec2(coords.x + offset[x], coords.y + offset[y]);
+                value += inputShader.eval(coord) * float(edge[x][y]);
+
+                coord = vec2(coords.x + offset2[x], coords.y + offset2[y]);
+                value2 += inputShader.eval(coord) * float(edge2[x][y]);
+            }
+        }
+        value.a = 1.0;
+        value2.a = 1.0;
+        value.r *= 2.0;
+        value2.b *= 2.0;
+    
+        return vec4(value.r, 0.0, value2.b, 1.0);
     }
 """.trimIndent()

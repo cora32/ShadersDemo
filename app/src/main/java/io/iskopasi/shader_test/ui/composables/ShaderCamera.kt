@@ -150,7 +150,7 @@ fun CameraView(controller: DrawerController) {
 
     val cameraController = remember {
         CameraController2(
-            isFront = false,
+            isFront = true,
             context = context.applicationContext,
             orientation = context.rotation,
             glslFilename = controller.currentShader.value.glslFilename

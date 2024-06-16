@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 
 class DrawerController : ViewModel() {
-    var currentShader = mutableStateOf(Shaders.entries.first())
+    var currentShader = mutableStateOf(Shaders.ChromaticShader)
     var currentShaderFlow: MutableStateFlow<Shaders> = MutableStateFlow(Shaders.entries.first())
     var cameraEnabled = mutableStateOf(false)
 
