@@ -2,5 +2,5 @@
 
 Minimum required API: 33
 
-![Recording video with shader applied](<img src="https://raw.githubusercontent.com/cora32/shader_test/master/output1.gif" width="350"/>)  ![AGSL shaders on jpg](<img src="https://raw.githubusercontent.com/cora32/shader_test/master/output3.gif" width="350"/>)
+![Recording video with shader applied](<img src="output1.gif" width="300"/>)  ![AGSL shaders on jpg](<img src="output3.gif" width="300"/>)
 
