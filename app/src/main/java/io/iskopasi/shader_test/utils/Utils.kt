@@ -271,7 +271,6 @@ fun Bitmap.saveBmpToFile(context: Context): File? {
                 recycle()
 
                 val file = getRealPath(context, uri)?.let { File(it) }
-                "????????????? ${file?.absoluteFile}".e
                 return file?.absoluteFile
             } ?: throw IOException("Failed to get output stream.")
         } ?: throw IOException("Failed to create new MediaStore record.")
