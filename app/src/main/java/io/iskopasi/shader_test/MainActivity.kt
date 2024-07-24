@@ -46,7 +46,7 @@ class MainActivity : ComponentActivity() {
     private val cameraPermissionRequest =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { resultMap ->
             if (resultMap.values.all { it }) {
-                // Implement camera related  code
+                openCamera(true)
             } else {
                 Toast.makeText(this, "We need your permission", Toast.LENGTH_LONG)
             }
@@ -69,18 +69,22 @@ class MainActivity : ComponentActivity() {
 
     private fun onCameraSwitchChanged(enabled: Boolean) {
         if (checkPermissions(this)) {
-            controller.onCameraViewSwitch(enabled)
-            scope.launch {
-                drawerState.close()
-            }
+            openCamera(enabled)
         } else {
             cameraPermissionRequest.launch(
                 arrayOf(
                     Manifest.permission.CAMERA,
                     Manifest.permission.RECORD_AUDIO,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+//                    Manifest.permission.WRITE_EXTERNAL_STORAGE
                 )
             )
+        }
+    }
+
+    private fun openCamera(enabled: Boolean) {
+        controller.onCameraViewSwitch(enabled)
+        scope.launch {
+            drawerState.close()
         }
     }
 

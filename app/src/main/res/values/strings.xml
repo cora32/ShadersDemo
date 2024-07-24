@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">ShadersDemo</string>
+    <string name="app_name">ShaderToy</string>
     <string name="title_activity_main">ShadersDemo</string>
     <string name="camera_state">Camera is %1$s</string>
     <string name="on">on</string>
