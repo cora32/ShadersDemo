@@ -21,7 +21,6 @@ import android.util.SparseIntArray
 import android.view.Surface
 import android.view.WindowManager
 import android.webkit.MimeTypeMap
-import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -104,10 +103,11 @@ fun Modifier.screenshot(mutableStateHolder: MutableState<Bitmap>) = this.drawWit
     }
 }
 
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 fun Modifier.applyShader(shader: Shaders) = composed {
     if (shader.shaderHolder.animated) {
         var time by remember { mutableFloatStateOf(0f) }
+        var shaderEffect =
+
 //        val infiniteTransition = rememberInfiniteTransition("loop")
 //        val animation = infiniteTransition.animateFloat(
 //            label = "progress",
@@ -126,11 +126,12 @@ fun Modifier.applyShader(shader: Shaders) = composed {
             }
         }
 
+
         graphicsLayer {
             clip = true
 
+//            "---> Applying shader: ${shader.shaderName}".e
             shader.shaderHolder.runtimeShader.setFloatUniform("iTime", time)
-//                Log.e("-->>", "animationProgress ${animation.value}")
 //                shader.shaderHolder.runtimeShader.setFloatUniform("progress", animation.value)
 
             renderEffect = shader.shaderHolder.compose().asComposeRenderEffect()
