@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "shader_test"
 include(":app")
- 
+include(":gallery_view_module")

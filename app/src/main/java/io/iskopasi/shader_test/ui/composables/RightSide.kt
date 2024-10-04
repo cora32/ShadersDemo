@@ -1,8 +1,5 @@
 package io.iskopasi.shader_test.ui.composables
 
-import android.content.res.Configuration
-import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -41,12 +38,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.res.imageResource
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.iskopasi.galleryview.GalleryModel
 import io.iskopasi.shader_test.DrawerController
 import io.iskopasi.shader_test.R
-import io.iskopasi.shader_test.ui.theme.Shader_testTheme
 import io.iskopasi.shader_test.utils.EmptyShader
 import io.iskopasi.shader_test.utils.applyShader
 import io.iskopasi.shader_test.utils.screenshot
@@ -54,33 +51,31 @@ import io.iskopasi.shader_test.utils.toPx
 
 
 @Composable
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
-fun RightSide(controller: DrawerController = viewModel()) {
+fun RightSide(
+    controller: DrawerController = viewModel(),
+    galleryModel: GalleryModel = viewModel(),
+) {
     if (controller.cameraEnabled.value) {
-        CameraView(controller)
+        CameraView(controller, galleryModel)
     } else {
-        Surface(
-            color = MaterialTheme.colorScheme.background,
-            modifier = Modifier
-                .padding(start = 40.dp, end = 16.dp)
-                .fillMaxSize()
-        ) {
             DemoView(controller)
         }
-    }
 }
 
 @Composable
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 fun DemoView(controller: DrawerController) {
     Column(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(top = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
             controller.currentShader.value.shaderName,
-            modifier = Modifier.padding(top = 32.dp),
-            style = MaterialTheme.typography.titleLarge
+            modifier = Modifier.padding(horizontal = 48.dp),
+            style = MaterialTheme.typography.titleLarge.copy(
+                textAlign = TextAlign.Center
+            )
         )
         Spacer(modifier = Modifier.height(32.dp))
         Box(
@@ -104,7 +99,6 @@ fun DemoView(controller: DrawerController) {
     }
 }
 
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun ShaderViewport(controller: DrawerController) {
     var offsetX by remember { mutableFloatStateOf(0f) }
@@ -203,7 +197,6 @@ fun ShaderViewport(controller: DrawerController) {
 
 }
 
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun PictureView(controller: DrawerController) {
     val blend = BlendMode.Difference
@@ -245,16 +238,16 @@ fun PictureView(controller: DrawerController) {
 }
 
 
-@Preview(showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
-@Composable
-fun RightSidePreview() {
-    Shader_testTheme {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background
-        ) {
-            RightSide()
-        }
-    }
-}
+//@Preview(showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
+//@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+//@Composable
+//fun RightSidePreview() {
+//    Shader_testTheme {
+//        Surface(
+//            modifier = Modifier.fillMaxSize(),
+//            color = MaterialTheme.colorScheme.background
+//        ) {
+//            RightSide()
+//        }
+//    }
+//}

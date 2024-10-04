@@ -1,8 +1,6 @@
 package io.iskopasi.shader_test.ui.composables
 
 import android.content.res.Configuration
-import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -54,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.iskopasi.shader_test.DrawerController
 import io.iskopasi.shader_test.R
+import io.iskopasi.shader_test.ui.theme.GrayLightMode
 import io.iskopasi.shader_test.ui.theme.Shader_testTheme
 import io.iskopasi.shader_test.ui.theme.colorOrange
 import io.iskopasi.shader_test.ui.theme.colorSwitchTrackBg
@@ -66,7 +65,6 @@ import io.iskopasi.shader_test.utils.toPx
 
 
 @Composable
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 fun ImageHolder(
     shader: Shaders,
     width: Dp,
@@ -100,7 +98,6 @@ fun ImageHolder(
     } else Box {}
 }
 
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun MiniShaderCanvas(
     shader: Shaders,
@@ -159,7 +156,6 @@ fun MiniShaderCanvas(
 }
 
 @Composable
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 fun Item(
     shader: Shaders,
     onShaderClicked: (Shaders) -> Unit,
@@ -170,10 +166,15 @@ fun Item(
         modifier = Modifier
             .padding(vertical = 4.dp, horizontal = 8.dp)
             .clip(RoundedCornerShape(8.dp))
-            .border(.5.dp, MaterialTheme.colorScheme.secondary, RoundedCornerShape(8.dp)),
+            .border(
+                .5.dp,
+                if (controller.currentShader.value == shader) colorOrange else MaterialTheme.colorScheme.secondary,
+                RoundedCornerShape(8.dp)
+            ),
 
         onClick = { onShaderClicked(shader) },
-        tonalElevation = if (controller.currentShader.value == shader) 5.dp else 0.dp
+        tonalElevation = if (controller.currentShader.value == shader) 15.dp else 0.dp,
+        contentColor = if (controller.currentShader.value == shader) colorOrange else GrayLightMode
     ) {
         Row(
             modifier = Modifier
@@ -197,9 +198,8 @@ fun Item(
 }
 
 @Composable
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 fun LeftSide(onClick: (Shaders) -> Unit, onCameraSwitchChanged: (Boolean) -> Unit) {
-    Surface(color = MaterialTheme.colorScheme.background) {
+//    Surface(color = MaterialTheme.colorScheme.background) {
         Column(
             modifier = Modifier
                 .padding(top = 24.dp, bottom = 55.dp)
@@ -217,7 +217,7 @@ fun LeftSide(onClick: (Shaders) -> Unit, onCameraSwitchChanged: (Boolean) -> Uni
             }
             CameraSwitch(onCameraSwitchChanged)
         }
-    }
+//    }
 }
 
 @Composable
@@ -263,7 +263,6 @@ fun CameraSwitch(onCameraSwitchChanged: (Boolean) -> Unit) {
 
 @Preview(showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 fun LeftSidePreview() {
     Shader_testTheme {
         Surface(

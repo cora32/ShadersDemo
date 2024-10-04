@@ -54,6 +54,8 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
+import io.iskopasi.galleryview.GalleryModel
+import io.iskopasi.galleryview.HorizontalGalleryView
 import io.iskopasi.shader_test.DrawerController
 import io.iskopasi.shader_test.utils.OrientationListener
 import io.iskopasi.shader_test.utils.bg
@@ -144,7 +146,7 @@ fun Lifecycle.observeAsState(): State<Lifecycle.Event> {
 }
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
-fun CameraView(controller: DrawerController) {
+fun CameraView(controller: DrawerController, galleryModel: GalleryModel) {
     val context = LocalContext.current.applicationContext
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -218,6 +220,7 @@ fun CameraView(controller: DrawerController) {
                 .align(Alignment.BottomCenter)
         ) {
             TimerView(cameraController)
+            HorizontalGalleryView(galleryModel, 100.dp)
             Controls(cameraController, view)
         }
     }
@@ -248,7 +251,7 @@ fun Controls(cameraController: CameraController2, view: AutoFitSurfaceView) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceEvenly,
         modifier = Modifier
-            .padding(bottom = 70.dp, start = 48.dp, end = 16.dp)
+            .padding(bottom = 64.dp, start = 16.dp, end = 16.dp)
             .border(
                 border = BorderStroke(1.dp, color = Color.DarkGray),
                 shape = shape

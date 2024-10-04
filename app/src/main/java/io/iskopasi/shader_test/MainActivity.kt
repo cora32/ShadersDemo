@@ -1,35 +1,40 @@
 package io.iskopasi.shader_test
 
 import android.Manifest
-import android.graphics.Color
-import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
-import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.annotation.RequiresApi
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Surface
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFontFamilyResolver
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.createFontFamilyResolver
+import androidx.compose.ui.unit.dp
 import io.iskopasi.shader_test.ui.composables.LeftSide
 import io.iskopasi.shader_test.ui.composables.RightSide
 import io.iskopasi.shader_test.ui.theme.Shader_testTheme
@@ -37,11 +42,13 @@ import io.iskopasi.shader_test.utils.Shaders
 import io.iskopasi.shader_test.utils.checkPermissions
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 
 class MainActivity : ComponentActivity() {
     private val controller: DrawerController by viewModels()
+//    private val galleryModel: GalleryModel by viewModels()
 
     private val cameraPermissionRequest =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { resultMap ->
@@ -59,10 +66,10 @@ class MainActivity : ComponentActivity() {
     private lateinit var drawerState: DrawerState
     private lateinit var scope: CoroutineScope
 
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     private fun onShaderClicked(shader: Shaders) {
         scope.launch {
             controller.onShaderClick(shader)
+            delay(200L)
             drawerState.close()
         }
     }
@@ -84,11 +91,11 @@ class MainActivity : ComponentActivity() {
     private fun openCamera(enabled: Boolean) {
         controller.onCameraViewSwitch(enabled)
         scope.launch {
+            delay(300L)
             drawerState.close()
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -98,7 +105,12 @@ class MainActivity : ComponentActivity() {
         // Prevents screen rotation
 //        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LOCKED
 
-        enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT))
+//        enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT))
+
+        window.setFlags(
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+        )
 
         setContent {
             drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -120,17 +132,46 @@ class MainActivity : ComponentActivity() {
                         ModalNavigationDrawer(
                             drawerState = drawerState,
                             drawerContent = {
-                                LeftSide(
-                                    ::onShaderClicked,
-                                    ::onCameraSwitchChanged
-                                )
-                            }) {
-                            Box(modifier = Modifier
-                                .pointerInput(Unit) {
-                                    detectDragGestures { change, dragAmount ->
-                                        change.consume()
-                                    }
-                                }) { RightSide() }
+                                ModalDrawerSheet(
+                                    drawerState,
+                                    modifier = Modifier.width(300.dp)
+                                ) {
+                                    LeftSide(
+                                        ::onShaderClicked,
+                                        ::onCameraSwitchChanged
+                                    )
+                                }
+                            },
+                        ) {
+                            Box(
+                                modifier = Modifier.padding(top = 16.dp)
+//                                .pointerInput(Unit) {
+//                                    detectDragGestures { change, dragAmount ->
+//                                        change.consume()
+//                                    }
+//                                }
+                            ) {
+                                RightSide()
+                                IconButton(
+                                    onClick = {
+                                        scope.launch {
+                                            drawerState.open()
+                                        }
+                                    },
+
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(top = 32.dp, end = 16.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.Menu,
+                                        contentDescription = stringResource(R.string.menu),
+                                        tint = Color.White,
+                                        modifier =
+                                        Modifier.size(32.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -138,3 +179,4 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
